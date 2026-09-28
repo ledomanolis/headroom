@@ -2,6 +2,15 @@
   'use strict';
 
   const M = window.HeadroomModel;
+  const AS = window.HeadroomAssumptions;
+  const MARKET = window.HEADROOM_MARKET || null;
+
+  // Starting values: model defaults, with today's gilt yield when market data is available.
+  const START = Object.assign({}, M.DEFAULTS, MARKET ? { giltYield: marketYield(M.DEFAULTS.duration) } : {});
+
+  function marketYield(term) {
+    return +M.yieldAtTerm(MARKET.giltCurve, term).toFixed(4);
+  }
 
   const FIELDS = [
     { group: 'Scheme today' },
@@ -10,17 +19,20 @@
       help: 'Valued on the low dependency basis (gilts plus the margin below).' },
     { key: 'outgoPct', label: 'Benefits paid each year', unit: '% of liabilities', pct: true, step: 0.5, min: 0, max: 20 },
     { key: 'duration', label: 'Liability duration', unit: 'years', step: 1, min: 2, max: 30 },
+    { key: 'inflationLinkedPct', label: 'Inflation-linked benefits', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 100,
+      help: 'Share of liabilities that rises with inflation (for example RPI or CPI pension increases).' },
 
-    { group: 'Investment' },
-    { key: 'growthPct', label: 'Growth assets', unit: '% of assets', pct: true, step: 5, min: 0, max: 100 },
+    { group: 'Growth assets', custom: 'growth' },
+
+    { group: 'Hedging' },
     { key: 'hedgeRatio', label: 'Interest rate hedge', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 120 },
-    { key: 'growthPremium', label: 'Growth return above gilts', unit: '% a year', pct: true, step: 0.25, min: -5, max: 10 },
-    { key: 'growthVol', label: 'Growth asset volatility', unit: '% a year', pct: true, step: 1, min: 0, max: 40 },
+    { key: 'inflationHedgeRatio', label: 'Inflation hedge', unit: '% of inflation exposure', pct: true, step: 5, min: 0, max: 120 },
 
     { group: 'Markets and pricing' },
-    { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.1, min: 0, max: 10 },
+    { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market' },
     { key: 'ldMargin', label: 'Low dependency margin over gilts', unit: '%', pct: true, step: 0.1, min: 0, max: 2 },
     { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
+    { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
     { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
 
@@ -79,6 +91,11 @@
   const charts = {};
   let lastRun = null;
 
+  let uploadedSets = AS.loadUploaded();
+  let currentSet = AS.BUILT_IN;
+  let allocation = Object.assign({}, AS.DEFAULT_ALLOCATION);
+  let setMessage = null; // { kind: 'error' | 'info', lines: [] }
+
   function fmtPct(v) { return `${Math.round(v * 100)}%`; }
   function fmtMoney(v) { return `£${v >= 100 ? v.toFixed(0) : v.toFixed(1)}m`; }
   function fmtYear(v) { return v === null ? '—' : v === 0 ? 'Now' : `Year ${v}`; }
@@ -97,7 +114,7 @@
     FIELDS.forEach((f) => {
       if (f.group) {
         fieldset = document.createElement('fieldset');
-        fieldset.innerHTML = `<legend>${f.group}</legend>`;
+        fieldset.innerHTML = `<legend>${f.group}</legend>${f.custom ? `<div id="${f.custom}"></div>` : ''}`;
         form.appendChild(fieldset);
         return;
       }
@@ -109,10 +126,142 @@
           <input type="number" name="${f.key}" step="${f.step}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''}>
           ${f.unit ? `<span class="unit">${f.unit}</span>` : ''}
         </span>
-        ${f.help ? `<span class="help">${f.help}</span>` : ''}`;
+        ${f.help ? `<span class="help">${f.help}</span>` : ''}
+        ${f.custom ? `<span class="help" id="${f.custom}"></span>` : ''}`;
       fieldset.appendChild(wrap);
     });
-    setValues(M.DEFAULTS);
+    setValues(START);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function renderMarketNote() {
+    const el = document.getElementById('market');
+    if (!MARKET) {
+      el.textContent = 'No market data loaded. Run tools/update-market-data.ps1 to fetch current gilt yields.';
+      return;
+    }
+    const duration = readParams().duration;
+    const asAt = new Date(MARKET.asAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    el.innerHTML = `Market: ${(marketYield(duration) * 100).toFixed(2)}% at ${duration} years
+      (Bank of England, ${asAt}). <button type="button" class="link" id="use-market">Use market yield</button>`;
+  }
+
+  function allSets() {
+    const uploaded = [...uploadedSets].sort((a, b) => String(b.asAt).localeCompare(String(a.asAt)));
+    return [AS.BUILT_IN, ...uploaded];
+  }
+
+  function growthTotalHtml() {
+    const gp = M.growthPortfolio(currentSet, allocation);
+    const dropped = Object.keys(allocation).filter((k) => allocation[k] > 0 && !currentSet.classes.some((c) => c.name === k));
+    return `
+      <span>Growth assets total <strong>${(gp.growthPct * 100).toFixed(1)}%</strong></span>
+      <span>Portfolio return over gilts <strong>${(gp.premium * 100).toFixed(2)}%</strong></span>
+      <span>Portfolio volatility <strong>${(gp.vol * 100).toFixed(1)}%</strong></span>
+      <span class="help">The rest (${Math.max(0, 100 - gp.growthPct * 100).toFixed(1)}%) is held in matching assets.</span>
+      ${gp.growthPct > 1 ? '<span class="warn">Growth allocations add up to more than 100% of assets.</span>' : ''}
+      ${dropped.length ? `<span class="warn">Not in this set, so ignored: ${dropped.map(escapeHtml).join(', ')}.</span>` : ''}`;
+  }
+
+  function renderGrowth() {
+    const options = allSets().map((s) => `<option value="${escapeHtml(s.id)}" ${s.id === currentSet.id ? 'selected' : ''}>
+      ${escapeHtml(s.name)}${s.asAt ? ` (as at ${escapeHtml(s.asAt)})` : ''}</option>`).join('');
+    const rows = currentSet.classes.map((c) => `
+      <label class="alloc-row">
+        <span class="alloc-name">${escapeHtml(c.name)}</span>
+        <input type="number" data-class="${escapeHtml(c.name)}" step="1" min="0" max="100" value="${+((allocation[c.name] || 0) * 100).toFixed(2)}">
+        <span class="alloc-stats">${(c.premium * 100).toFixed(1)}% · ${(c.vol * 100).toFixed(0)}%</span>
+      </label>`).join('');
+    const message = setMessage ? `<div class="set-msg ${setMessage.kind}">${setMessage.lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('')}</div>` : '';
+
+    document.getElementById('growth').innerHTML = `
+      <div class="set-picker">
+        <span class="field-label">Asset class assumptions</span>
+        <select id="set-select">${options}</select>
+        <p class="help">${escapeHtml(currentSet.source || 'No source given.')}</p>
+        <div class="set-actions">
+          <button type="button" class="link" id="set-upload">Upload CSV</button>
+          <button type="button" class="link" id="set-download">Download as CSV</button>
+          ${currentSet.builtIn ? '' : '<button type="button" class="link danger" id="set-delete">Remove this set</button>'}
+        </div>
+        <input type="file" id="set-file" accept=".csv,text/csv" hidden>
+        ${message}
+      </div>
+      <div class="alloc-head"><span>Asset class</span><span>% of assets</span><span>Return over gilts · volatility</span></div>
+      ${rows}
+      <div class="alloc-total" id="growth-total">${growthTotalHtml()}</div>`;
+  }
+
+  function selectSet(id) {
+    currentSet = allSets().find((s) => s.id === id) || AS.BUILT_IN;
+    setMessage = null;
+    renderGrowth();
+    update();
+  }
+
+  function handleUpload(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const { set, errors } = AS.fromCsv(String(reader.result));
+      if (errors.length) {
+        setMessage = { kind: 'error', lines: [`Could not use ${file.name}:`, ...errors.slice(0, 6)] };
+        renderGrowth();
+        return;
+      }
+      uploadedSets = uploadedSets.filter((s) => !(s.name === set.name && s.asAt === set.asAt)).concat(set);
+      const saved = AS.saveUploaded(uploadedSets);
+      currentSet = set;
+      setMessage = {
+        kind: 'info',
+        lines: [saved
+          ? `Loaded "${set.name}". It's saved in this browser for next time.`
+          : `Loaded "${set.name}" for this visit only. This browser wouldn't let the app save it.`]
+      };
+      renderGrowth();
+      update();
+    };
+    reader.readAsText(file);
+  }
+
+  function downloadFile(name, text, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function wireGrowth() {
+    const box = document.getElementById('growth');
+    box.addEventListener('change', (e) => {
+      if (e.target.id === 'set-select') selectSet(e.target.value);
+      if (e.target.id === 'set-file' && e.target.files[0]) handleUpload(e.target.files[0]);
+    });
+    box.addEventListener('input', (e) => {
+      const name = e.target.dataset.class;
+      if (!name) return;
+      e.stopPropagation();
+      const v = parseFloat(e.target.value);
+      allocation[name] = Number.isFinite(v) ? Math.min(Math.max(v, 0), 100) / 100 : 0;
+      document.getElementById('growth-total').innerHTML = growthTotalHtml();
+      scheduleUpdate();
+    });
+    box.addEventListener('click', (e) => {
+      if (e.target.id === 'set-upload') box.querySelector('#set-file').click();
+      if (e.target.id === 'set-download') {
+        const safe = currentSet.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+        downloadFile(`${safe || 'assumptions'}.csv`, AS.toCsv(currentSet), 'text/csv');
+      }
+      if (e.target.id === 'set-delete' && window.confirm(`Remove "${currentSet.name}" from this browser?`)) {
+        uploadedSets = uploadedSets.filter((s) => s.id !== currentSet.id);
+        AS.saveUploaded(uploadedSets);
+        selectSet(AS.BUILT_IN.id);
+      }
+    });
   }
 
   function setValues(values) {
@@ -126,12 +275,16 @@
     FIELDS.forEach((f) => {
       if (!f.key) return;
       let v = parseFloat(form.elements[f.key].value);
-      if (!Number.isFinite(v)) v = toDisplay(f, M.DEFAULTS[f.key]);
+      if (!Number.isFinite(v)) v = toDisplay(f, START[f.key]);
       if (f.min !== undefined) v = Math.max(v, f.min);
       if (f.max !== undefined) v = Math.min(v, f.max);
       if (f.int) v = Math.round(v);
       p[f.key] = f.pct ? v / 100 : v;
     });
+    const gp = M.growthPortfolio(currentSet, allocation);
+    p.growthPct = gp.growthPct;
+    p.growthPremium = gp.premium;
+    p.growthVol = gp.vol;
     return p;
   }
 
@@ -312,13 +465,25 @@
       : 'None';
     const inputs = FIELDS.filter((f) => f.key).map((f) => `
       <div><dt>${f.label}</dt><dd>${toDisplay(f, record.inputs[f.key])}${f.unit ? ` ${f.unit}` : ''}</dd></div>`).join('');
+    const set = record.assumptionSet;
+    const growth = set.classes.map((c) => `
+      <div><dt>${escapeHtml(c.name)}</dt><dd>${+(record.allocation[c.name] * 100).toFixed(2)}% of assets ·
+        ${(c.premium * 100).toFixed(1)}% over gilts · ${(c.vol * 100).toFixed(0)}% vol</dd></div>`).join('');
     document.getElementById('audit-body').innerHTML = `
       <div class="audit-meta">
         <div><span class="k">Run at</span><span>${new Date(record.runAt).toLocaleString('en-GB')}</span></div>
         <div><span class="k">Model version</span><span>${record.modelVersion}</span></div>
         <div><span class="k">Stresses applied</span><span>${stressText}</span></div>
+        <div><span class="k">Asset class assumptions</span><span>${escapeHtml(set.name)}${set.asAt ? `, as at ${escapeHtml(set.asAt)}` : ''}</span></div>
+        <div><span class="k">Market data</span><span>${record.marketData ? `${escapeHtml(record.marketData.source)}, as at ${escapeHtml(record.marketData.asAt)}` : 'None loaded'}</span></div>
       </div>
-      <dl class="audit-inputs">${inputs}</dl>`;
+      <h3 class="audit-sub">Scheme and model inputs</h3>
+      <dl class="audit-inputs">${inputs}</dl>
+      <h3 class="audit-sub">Growth assets</h3>
+      <dl class="audit-inputs wide">${growth}</dl>
+      <p class="help">Portfolio: ${(record.inputs.growthPct * 100).toFixed(1)}% of assets,
+        ${(record.inputs.growthPremium * 100).toFixed(2)}% a year over gilts, ${(record.inputs.growthVol * 100).toFixed(1)}% volatility.
+        The downloaded run record includes the full correlation matrix.</p>`;
   }
 
   function update() {
@@ -337,6 +502,9 @@
       modelVersion: M.MODEL_VERSION,
       runAt: new Date().toISOString(),
       inputs: p,
+      allocation: Object.fromEntries(currentSet.classes.map((c) => [c.name, allocation[c.name] || 0])),
+      assumptionSet: currentSet,
+      marketData: MARKET,
       stresses,
       startingPosition: run.start,
       results: run.results,
@@ -347,22 +515,32 @@
 
   function download() {
     if (!lastRun) return;
-    const blob = new Blob([JSON.stringify(lastRun, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `headroom-run-${lastRun.runAt.slice(0, 19).replace(/[:T]/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadFile(`headroom-run-${lastRun.runAt.slice(0, 19).replace(/[:T]/g, '-')}.json`,
+      JSON.stringify(lastRun, null, 2), 'application/json');
   }
 
   let timer = null;
-  form.addEventListener('input', () => {
+  function scheduleUpdate() {
     clearTimeout(timer);
     timer = setTimeout(update, 200);
+  }
+
+  form.addEventListener('input', (e) => {
+    if (e.target.name === 'duration') renderMarketNote();
+    scheduleUpdate();
   });
   form.addEventListener('submit', (e) => e.preventDefault());
+  form.addEventListener('click', (e) => {
+    if (e.target.id !== 'use-market') return;
+    form.elements.giltYield.value = +(marketYield(readParams().duration) * 100).toFixed(2);
+    update();
+  });
   document.getElementById('reset').addEventListener('click', () => {
-    setValues(M.DEFAULTS);
+    setValues(START);
+    allocation = Object.assign({}, AS.DEFAULT_ALLOCATION);
+    setMessage = null;
+    renderGrowth();
+    renderMarketNote();
     update();
   });
   document.getElementById('download').addEventListener('click', download);
@@ -372,6 +550,9 @@
   Chart.defaults.color = '#5b6478';
 
   buildForm();
+  renderGrowth();
+  wireGrowth();
+  renderMarketNote();
   buildStresses();
   update();
 })();
