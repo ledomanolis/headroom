@@ -25,8 +25,10 @@
     { group: 'Growth assets', custom: 'growth' },
 
     { group: 'Hedging' },
-    { key: 'hedgeRatio', label: 'Interest rate hedge', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 120 },
-    { key: 'inflationHedgeRatio', label: 'Inflation hedge', unit: '% of inflation exposure', pct: true, step: 5, min: 0, max: 120 },
+    { key: 'hedgeRatio', label: 'Interest rate hedge', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 120,
+      help: 'Share of the liabilities\' interest rate sensitivity that the assets hedge.' },
+    { key: 'inflationHedgeRatio', label: 'Inflation hedge', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 120,
+      help: 'Share of the liabilities\' inflation sensitivity that the assets hedge. 100% means assets move fully in line with liabilities when inflation expectations change.' },
 
     { group: 'Markets and pricing' },
     { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market' },
