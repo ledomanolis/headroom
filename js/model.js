@@ -49,6 +49,7 @@
     releaseThreshold: 1.10,
     memberShare: 0.30,
     employerTax: 0.25,
+    rpOn: true,             // employer pays deficit contributions under recovery plans
     valuationYears: 3,
     recoveryYears: 7,
     rpOutperformance: null, // entered by the user; blank means no allowance
@@ -226,7 +227,7 @@
         if (boughtAt >= 0) { record(t); continue; }
 
         // Valuation at the start of the year: set a new recovery plan or end the current one.
-        if ((t - 1) % p.valuationYears === 0) {
+        if (p.rpOn && (t - 1) % p.valuationYears === 0) {
           planYearsLeft = 0;
           if (A < L * trigger) {
             const d = y + p.discountMargin;
