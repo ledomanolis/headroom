@@ -3,19 +3,22 @@
  * Illustrative only. Not an actuarial model and not advice.
  *
  * Each year, per scenario:
- *   - liabilities (low dependency basis) accrue at gilts + margin, pay benefits, and are
+ *   - liabilities (on the main funding basis) accrue at gilts + margin, pay benefits, and are
  *     revalued for the change in gilt yields (duration), the change in market implied
  *     inflation (on the inflation-linked share) and a random longevity shock
  *   - matching assets earn gilts + margin; growth assets earn gilts + premium + noise, where
  *     the premium and volatility come from the asset class mix and correlations
  *   - the interest rate and inflation hedges offset the chosen share of each liability sensitivity
- *   - if funding is below 100%, the employer pays the shortfall over the recovery period
+ *   - if funding is below 100% (on the chosen basis), the employer pays the shortfall over the
+ *     recovery period
+ * An optional second funding basis values the same benefits at a different margin over gilts,
+ * using the liability duration: L2 = L * exp(-duration * (margin2 - margin)).
  * All three options use the same random scenarios so the comparison is like for like.
  */
 (function (global) {
   'use strict';
 
-  const MODEL_VERSION = '0.2.0';
+  const MODEL_VERSION = '0.3.0';
   const MEAN_REVERSION = 0.1;   // pull of gilt yields and implied inflation back to their starting level each year
   const DURATION_RUNOFF = 0.3;  // liability duration shortens as the scheme matures
   const MIN_DURATION = 5;
@@ -29,7 +32,13 @@
     hedgeRatio: 0.90,
     inflationHedgeRatio: 0.80,
     giltYield: 0.045,
-    ldMargin: 0.005,
+    basis1Name: 'Main funding basis',
+    discountMargin: 0.005,
+    basis2On: false,
+    basis2Name: 'Second funding basis',
+    basis2Margin: null, // entered by the user
+    releaseBasis: 1,
+    contribBasis: 1,
     yieldVol: 0.007,
     inflationVol: 0.004,
     longevityVol: 0.004,
@@ -146,38 +155,72 @@
     return sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))];
   }
 
+  function percentilesOf(values, n, W) {
+    const out = { p5: [], p25: [], p50: [], p75: [], p95: [] };
+    const col = new Float64Array(n);
+    for (let t = 0; t < W; t++) {
+      for (let s = 0; s < n; s++) col[s] = values[s * W + t];
+      col.sort();
+      out.p5.push(quantile(col, 0.05) * 100);
+      out.p25.push(quantile(col, 0.25) * 100);
+      out.p50.push(quantile(col, 0.50) * 100);
+      out.p75.push(quantile(col, 0.75) * 100);
+      out.p95.push(quantile(col, 0.95) * 100);
+    }
+    return out;
+  }
+
   function simulate(p, strategy, start, shocks) {
     const n = p.numSims;
     const H = p.horizon;
     const W = H + 1;
-    const funding = new Float64Array(n * W);
     const growthPct = strategy === 'buyout' ? p.buyoutGrowthPct : p.growthPct;
     const buyoutLevel = 1 + p.buyoutPremium;
 
-    let nContrib = 0, nBelow = 0, nBought = 0;
+    // Second basis liabilities as a multiple of main basis liabilities, at duration D.
+    const basis2 = p.basis2On;
+    const spread = basis2 ? p.basis2Margin - p.discountMargin : 0;
+    const basis2Factor = (D) => Math.exp(-D * spread);
+    const releaseFactor = (D) => (basis2 && p.releaseBasis === 2 ? basis2Factor(D) : 1);
+    const contribFactor = (D) => (basis2 && p.contribBasis === 2 ? basis2Factor(D) : 1);
+
+    const funding = new Float64Array(n * W);
+    const funding2 = basis2 ? new Float64Array(n * W) : null;
+
+    let nContrib = 0, nBelow = 0, nBelow2 = 0, nBought = 0;
     let totContrib = 0, totEmployer = 0, totMember = 0, totRemaining = 0;
     const buyoutYears = [];
 
     for (let s = 0; s < n; s++) {
       let A = start.A, L = start.L, y = start.y, D = p.duration, inflationDrift = 0;
-      let contrib = 0, employer = 0, member = 0, below = A < L, boughtAt = -1;
+      let contrib = 0, employer = 0, member = 0, boughtAt = -1;
+      let below = A < L;
+      let below2 = basis2 && A < L * basis2Factor(D);
+      let frozen2 = 0; // funding on the second basis once bought out
 
       const payOut = (amount) => {
         employer += amount * (1 - p.memberShare) * (1 - p.employerTax);
         member += amount * p.memberShare;
       };
-
-      if (strategy === 'buyout' && A >= L * buyoutLevel) {
+      const record = (t) => {
+        funding[s * W + t] = boughtAt >= 0 ? buyoutLevel : A / L;
+        if (basis2) funding2[s * W + t] = boughtAt >= 0 ? frozen2 : A / (L * basis2Factor(D));
+      };
+      const buyOut = (t) => {
         payOut(A - L * buyoutLevel);
-        boughtAt = 0;
-      }
-      funding[s * W] = boughtAt >= 0 ? buyoutLevel : A / L;
+        boughtAt = t;
+        frozen2 = buyoutLevel / basis2Factor(D);
+      };
+
+      if (strategy === 'buyout' && A >= L * buyoutLevel) buyOut(0);
+      record(0);
 
       for (let t = 1; t <= H; t++) {
-        if (boughtAt >= 0) { funding[s * W + t] = buyoutLevel; continue; }
+        if (boughtAt >= 0) { record(t); continue; }
 
-        if (A < L) {
-          const c = (L - A) / p.recoveryYears;
+        const target = L * contribFactor(D);
+        if (A < target) {
+          const c = (target - A) / p.recoveryYears;
           A += c;
           contrib += c;
         }
@@ -190,7 +233,7 @@
         const growth = A * growthPct;
         const outgo = L * p.outgoPct;
         const growthReturn = y + p.growthPremium + p.growthVol * shocks.zG[k];
-        const matchingReturn = y + p.ldMargin;
+        const matchingReturn = y + p.discountMargin;
 
         A = growth * (1 + growthReturn) + (A - growth) * (1 + matchingReturn)
           + p.hedgeRatio * L * (rateFactor - 1)
@@ -203,19 +246,21 @@
         D = Math.max(D - DURATION_RUNOFF, MIN_DURATION);
 
         if (A < L) below = true;
+        if (basis2 && A < L * basis2Factor(D)) below2 = true;
 
+        const releaseLevel = L * releaseFactor(D) * p.releaseThreshold;
         if (strategy === 'buyout' && A >= L * buyoutLevel) {
-          payOut(A - L * buyoutLevel);
-          boughtAt = t;
-        } else if (strategy === 'release' && A > L * p.releaseThreshold) {
-          payOut(A - L * p.releaseThreshold);
-          A = L * p.releaseThreshold;
+          buyOut(t);
+        } else if (strategy === 'release' && A > releaseLevel) {
+          payOut(A - releaseLevel);
+          A = releaseLevel;
         }
-        funding[s * W + t] = boughtAt >= 0 ? buyoutLevel : A / L;
+        record(t);
       }
 
       if (contrib > 0) nContrib++;
       if (below) nBelow++;
+      if (below2) nBelow2++;
       if (boughtAt >= 0) {
         nBought++;
         buyoutYears.push(boughtAt);
@@ -227,27 +272,20 @@
       totMember += member;
     }
 
-    const percentiles = { p5: [], p25: [], p50: [], p75: [], p95: [] };
-    const col = new Float64Array(n);
-    for (let t = 0; t < W; t++) {
-      for (let s = 0; s < n; s++) col[s] = funding[s * W + t];
-      col.sort();
-      percentiles.p5.push(quantile(col, 0.05) * 100);
-      percentiles.p25.push(quantile(col, 0.25) * 100);
-      percentiles.p50.push(quantile(col, 0.50) * 100);
-      percentiles.p75.push(quantile(col, 0.75) * 100);
-      percentiles.p95.push(quantile(col, 0.95) * 100);
-    }
-
+    const percentiles = percentilesOf(funding, n, W);
+    const percentiles2 = basis2 ? percentilesOf(funding2, n, W) : null;
     buyoutYears.sort((a, b) => a - b);
 
     return {
       strategy,
       percentiles,
+      percentiles2,
       medianFundingEnd: percentiles.p50[H] / 100,
+      medianFundingEnd2: basis2 ? percentiles2.p50[H] / 100 : null,
       probContrib: nContrib / n,
       expContrib: totContrib / n,
       probBelow100: nBelow / n,
+      probBelow100_2: basis2 ? nBelow2 / n : null,
       expEmployer: totEmployer / n,
       expMember: totMember / n,
       expRemaining: totRemaining / n,

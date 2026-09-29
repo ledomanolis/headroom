@@ -16,11 +16,22 @@
     { group: 'Scheme today' },
     { key: 'assets', label: 'Assets', unit: '£m', step: 5, min: 1 },
     { key: 'liabilities', label: 'Liabilities', unit: '£m', step: 5, min: 1,
-      help: 'Valued on the low dependency basis (gilts plus the margin below).' },
+      help: 'Valued on the main funding basis (set under Funding basis below).' },
     { key: 'outgoPct', label: 'Benefits paid each year', unit: '% of liabilities', pct: true, step: 0.5, min: 0, max: 20 },
     { key: 'duration', label: 'Liability duration', unit: 'years', step: 1, min: 2, max: 30 },
     { key: 'inflationLinkedPct', label: 'Inflation-linked benefits', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 100,
       help: 'Share of liabilities that rises with inflation (for example RPI or CPI pension increases).' },
+
+    { group: 'Funding basis' },
+    { key: 'basis1Name', label: 'Basis name', auditLabel: 'Main basis name', type: 'text' },
+    { key: 'discountMargin', label: 'Discount rate: margin over gilts', auditLabel: 'Main basis: margin over gilts',
+      unit: '%', pct: true, step: 0.1, min: -2, max: 5 },
+    { key: 'basis2On', label: 'Add a second funding basis', type: 'checkbox' },
+    { key: 'basis2Name', label: 'Second basis name', type: 'text', when: 'basis2On' },
+    { key: 'basis2Margin', label: 'Discount rate: margin over gilts', auditLabel: 'Second basis: margin over gilts',
+      unit: '%', pct: true, step: 0.1, min: -2, max: 5, optional: true, when: 'basis2On', custom: 'basis2-note' },
+    { key: 'releaseBasis', label: 'Test surplus release on', type: 'select', when: 'basis2On' },
+    { key: 'contribBasis', label: 'Employer pays in when funding is below 100% on', type: 'select', when: 'basis2On' },
 
     { group: 'Growth assets', custom: 'growth' },
 
@@ -32,7 +43,6 @@
 
     { group: 'Markets and pricing' },
     { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market' },
-    { key: 'ldMargin', label: 'Low dependency margin over gilts', unit: '%', pct: true, step: 0.1, min: 0, max: 2 },
     { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
     { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
     { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
@@ -64,15 +74,21 @@
     },
     release: {
       name: 'Surplus release', color: '#2f855a',
-      blurb: (p) => `Run on and release anything above ${fmtPct(p.releaseThreshold)} funded each year, shared between employer and members.`
+      blurb: (p) => `Run on and release anything above ${fmtPct(p.releaseThreshold)} funded${p.basis2On
+        ? ` on ${escapeHtml(theBasis(p, p.releaseBasis))}` : ''} each year, shared between employer and members.`
     }
   };
 
+  // Adds the basis name to a label, but only when there is more than one basis to tell apart.
+  const onBasis = (p, text, basis) => (p.basis2On ? `${text} (${escapeHtml(basisName(p, basis))})` : text);
+
   const ROWS = [
-    { key: 'medianFundingEnd', label: (p) => `Median funding in year ${p.horizon}`, fmt: fmtPct, better: 'up' },
+    { key: 'medianFundingEnd', label: (p) => onBasis(p, `Median funding in year ${p.horizon}`, 1), fmt: fmtPct, better: 'up' },
+    { key: 'medianFundingEnd2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Median funding in year ${p.horizon}`, 2), fmt: fmtPct, better: 'up' },
     { key: 'probContrib', label: () => 'Chance employer has to pay in more', fmt: fmtPct, better: 'down' },
     { key: 'expContrib', label: () => 'Expected employer contributions', fmt: fmtMoney, better: 'down' },
-    { key: 'probBelow100', label: () => 'Chance funding dips below 100%', fmt: fmtPct, better: 'down' },
+    { key: 'probBelow100', label: (p) => onBasis(p, 'Chance funding dips below 100%', 1), fmt: fmtPct, better: 'down' },
+    { key: 'probBelow100_2', show: (p) => p.basis2On, label: (p) => onBasis(p, 'Chance funding dips below 100%', 2), fmt: fmtPct, better: 'down' },
     { key: 'expEmployer', label: () => 'Expected surplus to employer (after tax)', fmt: fmtMoney, better: 'up' },
     { key: 'expMember', label: () => 'Expected surplus to members', fmt: fmtMoney, better: 'up' },
     { key: 'expRemaining', label: (p) => `Surplus still in scheme, year ${p.horizon}`, fmt: fmtMoney },
@@ -97,6 +113,22 @@
   let currentSet = AS.BUILT_IN;
   let allocation = Object.assign({}, AS.DEFAULT_ALLOCATION);
   let setMessage = null; // { kind: 'error' | 'info', lines: [] }
+  let chartBasis = 1;
+
+  function basisName(p, basis) {
+    return (basis === 2 ? p.basis2Name : p.basis1Name) || (basis === 2 ? 'Second funding basis' : 'Main funding basis');
+  }
+
+  // "the Technical provisions basis", avoiding "basis basis" when the name already says it.
+  function theBasis(p, basis) {
+    const name = basisName(p, basis);
+    return `the ${name}${/\bbasis$/i.test(name) ? '' : ' basis'}`;
+  }
+
+  // Second basis liabilities as a multiple of main basis liabilities today.
+  function basis2Factor(p) {
+    return Math.exp(-p.duration * (p.basis2Margin - p.discountMargin));
+  }
 
   function fmtPct(v) { return `${Math.round(v * 100)}%`; }
   function fmtMoney(v) { return `£${v >= 100 ? v.toFixed(0) : v.toFixed(1)}m`; }
@@ -111,6 +143,15 @@
     return field.pct ? +(value * 100).toFixed(4) : value;
   }
 
+  // How a field's value reads in the run record.
+  function auditValue(field, p) {
+    const v = p[field.key];
+    if (field.type === 'checkbox') return v ? 'Yes' : 'No';
+    if (field.type === 'select') return escapeHtml(basisName(p, v));
+    if (field.type === 'text') return escapeHtml(v);
+    return `${toDisplay(field, v)}${field.unit ? ` ${field.unit}` : ''}`;
+  }
+
   function buildForm() {
     let fieldset = null;
     FIELDS.forEach((f) => {
@@ -121,18 +162,51 @@
         return;
       }
       const wrap = document.createElement('label');
-      wrap.className = 'field';
-      wrap.innerHTML = `
-        <span class="field-label">${f.label}</span>
-        <span class="field-input">
-          <input type="number" name="${f.key}" step="${f.step}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''}>
-          ${f.unit ? `<span class="unit">${f.unit}</span>` : ''}
-        </span>
+      wrap.className = f.type === 'checkbox' ? 'field check' : 'field';
+      if (f.when) wrap.dataset.when = f.when;
+      let control;
+      if (f.type === 'checkbox') {
+        control = `<input type="checkbox" name="${f.key}"><span class="field-label">${f.label}</span>`;
+      } else if (f.type === 'text') {
+        control = `<span class="field-label">${f.label}</span>
+          <span class="field-input"><input type="text" name="${f.key}" maxlength="60" class="wide"></span>`;
+      } else if (f.type === 'select') {
+        control = `<span class="field-label">${f.label}</span>
+          <span class="field-input"><select name="${f.key}" class="wide"><option value="1"></option><option value="2"></option></select></span>`;
+      } else {
+        control = `<span class="field-label">${f.label}</span>
+          <span class="field-input">
+            <input type="number" name="${f.key}" step="${f.step}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''}>
+            ${f.unit ? `<span class="unit">${f.unit}</span>` : ''}
+          </span>`;
+      }
+      wrap.innerHTML = `${control}
         ${f.help ? `<span class="help">${f.help}</span>` : ''}
         ${f.custom ? `<span class="help" id="${f.custom}"></span>` : ''}`;
       fieldset.appendChild(wrap);
     });
     setValues(START);
+  }
+
+  // Shows or hides the second basis inputs and keeps basis names in step.
+  function refreshBasisUI() {
+    const p = readParams();
+    form.querySelectorAll('[data-when]').forEach((el) => { el.hidden = !form.elements[el.dataset.when].checked; });
+    ['releaseBasis', 'contribBasis'].forEach((key) => {
+      const select = form.elements[key];
+      select.options[0].textContent = basisName(p, 1);
+      select.options[1].textContent = basisName(p, 2);
+    });
+    if (p.basis2Pending) {
+      document.getElementById('basis2-note').textContent = 'Enter a margin to add this basis to the results.';
+      return;
+    }
+    if (!p.basis2On) return;
+    const change = basis2Factor(p) - 1;
+    document.getElementById('basis2-note').textContent =
+      `Gives liabilities of about ${fmtMoney(p.liabilities * basis2Factor(p))} today on this basis ` +
+      `(${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}% against the main basis), ` +
+      `from the same benefits discounted at this rate over a ${p.duration}-year duration.`;
   }
 
   function escapeHtml(s) {
@@ -268,7 +342,9 @@
 
   function setValues(values) {
     FIELDS.forEach((f) => {
-      if (f.key) form.elements[f.key].value = toDisplay(f, values[f.key]);
+      if (!f.key) return;
+      if (f.type === 'checkbox') form.elements[f.key].checked = !!values[f.key];
+      else form.elements[f.key].value = values[f.key] === null ? '' : toDisplay(f, values[f.key]);
     });
   }
 
@@ -276,13 +352,21 @@
     const p = {};
     FIELDS.forEach((f) => {
       if (!f.key) return;
-      let v = parseFloat(form.elements[f.key].value);
+      const el = form.elements[f.key];
+      if (f.type === 'checkbox') { p[f.key] = el.checked; return; }
+      if (f.type === 'text') { p[f.key] = el.value.trim() || START[f.key]; return; }
+      if (f.type === 'select') { p[f.key] = el.value === '2' ? 2 : 1; return; }
+      let v = parseFloat(el.value);
+      if (!Number.isFinite(v) && f.optional) { p[f.key] = null; return; }
       if (!Number.isFinite(v)) v = toDisplay(f, START[f.key]);
       if (f.min !== undefined) v = Math.max(v, f.min);
       if (f.max !== undefined) v = Math.min(v, f.max);
       if (f.int) v = Math.round(v);
       p[f.key] = f.pct ? v / 100 : v;
     });
+    // The second basis only counts once its margin has been entered.
+    p.basis2Pending = p.basis2On && p.basis2Margin === null;
+    if (p.basis2Pending) p.basis2On = false;
     const gp = M.growthPortfolio(currentSet, allocation);
     p.growthPct = gp.growthPct;
     p.growthPremium = gp.premium;
@@ -315,14 +399,18 @@
   }
 
   function renderSnapshot(p, start) {
-    const funding = start.A / start.L;
     const stressed = activeStresses.size > 0;
+    const L2 = start.L * basis2Factor(p);
+    const second = p.basis2On ? `
+      <div><span class="k">${onBasis(p, 'Liabilities', 2)}</span><span class="v">${fmtMoney(L2)}</span></div>
+      <div><span class="k">${onBasis(p, 'Funding level', 2)}</span><span class="v">${Math.round(start.A / L2 * 100)}%</span></div>` : '';
     document.getElementById('snapshot').innerHTML = `
       <div><span class="k">Assets</span><span class="v">${fmtMoney(start.A)}</span></div>
-      <div><span class="k">Liabilities</span><span class="v">${fmtMoney(start.L)}</span></div>
-      <div><span class="k">Funding level</span><span class="v">${Math.round(funding * 100)}%</span></div>
       <div><span class="k">Insurer price</span><span class="v">${fmtMoney(start.L * (1 + p.buyoutPremium))}</span></div>
-      <p class="snap-note">${stressed ? 'After the stress, on the low dependency basis.' : 'Today, on the low dependency basis.'}</p>`;
+      <div><span class="k">${onBasis(p, 'Liabilities', 1)}</span><span class="v">${fmtMoney(start.L)}</span></div>
+      <div><span class="k">${onBasis(p, 'Funding level', 1)}</span><span class="v">${Math.round(start.A / start.L * 100)}%</span></div>
+      ${second}
+      <p class="snap-note">${stressed ? 'After the stress' : 'Today'}, on the chosen funding ${p.basis2On ? 'bases' : 'basis'}.</p>`;
   }
 
   function deltaHtml(row, cur, base) {
@@ -339,7 +427,7 @@
     box.innerHTML = results.map((r, i) => {
       const info = INFO[r.strategy];
       const base = baseResults ? baseResults[i] : null;
-      const rows = ROWS.filter((row) => !row.only || row.only === r.strategy).map((row) => `
+      const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && (!row.show || row.show(p))).map((row) => `
         <div class="row">
           <dt>${row.label(p)}</dt>
           <dd><span class="val">${row.fmt(r[row.key])}</span>${base ? deltaHtml(row, r[row.key], base[row.key]) : ''}</dd>
@@ -353,8 +441,7 @@
     }).join('');
   }
 
-  function fanDatasets(r, color, refLines) {
-    const pc = r.percentiles;
+  function fanDatasets(pc, color, refLines) {
     const band = (label, data, fill, alpha) => ({
       label, data, fill, borderWidth: 0, pointRadius: 0,
       backgroundColor: hexToRgba(color, alpha), tension: 0.25
@@ -375,22 +462,36 @@
     return sets;
   }
 
+  function renderBasisToggle(p) {
+    const box = document.getElementById('basis-toggle');
+    box.hidden = !p.basis2On;
+    if (!p.basis2On) return;
+    box.innerHTML = [1, 2].map((b) => `
+      <button type="button" data-basis="${b}" aria-pressed="${chartBasis === b}">${escapeHtml(basisName(p, b))}</button>`).join('');
+  }
+
   function renderFanCharts(p, results) {
+    const viewing = p.basis2On ? chartBasis : 1;
+    const pcOf = (r) => (viewing === 2 ? r.percentiles2 : r.percentiles);
+    document.getElementById('funding-sub').textContent = `On ${theBasis(p, viewing)}. ` +
+      'The line is the median outcome. Shaded bands cover the middle 50% and 90% of scenarios.';
+
     let lo = Infinity, hi = -Infinity;
     results.forEach((r) => {
-      lo = Math.min(lo, ...r.percentiles.p5);
-      hi = Math.max(hi, ...r.percentiles.p95);
+      lo = Math.min(lo, ...pcOf(r).p5);
+      hi = Math.max(hi, ...pcOf(r).p95);
     });
     const yMin = Math.max(0, Math.floor(Math.min(lo, 95) / 10) * 10);
     const yMax = Math.ceil(Math.max(hi, p.releaseThreshold * 100 + 5) / 10) * 10;
     const labels = results[0].percentiles.p50.map((_, t) => t);
+    const releaseBasis = p.basis2On ? p.releaseBasis : 1;
 
     results.forEach((r) => {
       const info = INFO[r.strategy];
       const refs = [{ label: '100% funded', value: 100, color: '#8a93a3' }];
-      if (r.strategy === 'buyout') refs.push({ label: 'Insurer price', value: (1 + p.buyoutPremium) * 100, color: info.color });
-      if (r.strategy === 'release') refs.push({ label: 'Release above', value: p.releaseThreshold * 100, color: info.color });
-      const datasets = fanDatasets(r, info.color, refs);
+      if (r.strategy === 'buyout' && viewing === 1) refs.push({ label: 'Insurer price', value: (1 + p.buyoutPremium) * 100, color: info.color });
+      if (r.strategy === 'release' && viewing === releaseBasis) refs.push({ label: 'Release above', value: p.releaseThreshold * 100, color: info.color });
+      const datasets = fanDatasets(pcOf(r), info.color, refs);
 
       const chart = charts[r.strategy];
       if (chart) {
@@ -465,8 +566,9 @@
     const stressText = record.stresses.length
       ? record.stresses.map((k) => M.STRESSES.find((s) => s.key === k).label).join(', ')
       : 'None';
-    const inputs = FIELDS.filter((f) => f.key).map((f) => `
-      <div><dt>${f.label}</dt><dd>${toDisplay(f, record.inputs[f.key])}${f.unit ? ` ${f.unit}` : ''}</dd></div>`).join('');
+    const p = record.inputs;
+    const inputs = FIELDS.filter((f) => f.key && (!f.when || p[f.when])).map((f) => `
+      <div><dt>${f.auditLabel || f.label}</dt><dd>${auditValue(f, p)}</dd></div>`).join('');
     const set = record.assumptionSet;
     const growth = set.classes.map((c) => `
       <div><dt>${escapeHtml(c.name)}</dt><dd>${+(record.allocation[c.name] * 100).toFixed(2)}% of assets ·
@@ -496,6 +598,7 @@
 
     renderSnapshot(p, run.start);
     renderCards(p, run.results, base ? base.results : null);
+    renderBasisToggle(p);
     renderFanCharts(p, run.results);
     renderMoneyChart(run.results);
 
@@ -529,7 +632,14 @@
 
   form.addEventListener('input', (e) => {
     if (e.target.name === 'duration') renderMarketNote();
+    refreshBasisUI();
     scheduleUpdate();
+  });
+  document.getElementById('basis-toggle').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-basis]');
+    if (!b) return;
+    chartBasis = Number(b.dataset.basis);
+    update();
   });
   form.addEventListener('submit', (e) => e.preventDefault());
   form.addEventListener('click', (e) => {
@@ -543,6 +653,7 @@
     setMessage = null;
     renderGrowth();
     renderMarketNote();
+    refreshBasisUI();
     update();
   });
   document.getElementById('download').addEventListener('click', download);
@@ -555,6 +666,7 @@
   renderGrowth();
   wireGrowth();
   renderMarketNote();
+  refreshBasisUI();
   buildStresses();
   update();
 })();
