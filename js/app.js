@@ -50,7 +50,8 @@
     { group: 'The options' },
     { key: 'buyoutGrowthPct', label: 'Buyout: growth assets while waiting', unit: '% of assets', pct: true, step: 5, min: 0, max: 100 },
     { key: 'releaseThreshold', label: 'Release: anything above', unit: '% funded', pct: true, step: 1, min: 100, max: 200 },
-    { key: 'memberShare', label: 'Share of surplus to members', unit: '%', pct: true, step: 5, min: 0, max: 100 },
+    { key: 'memberShare', label: 'Share of surplus to members', unit: '%', pct: true, step: 5, min: 0, max: 100,
+      help: 'Members\' payments are shown before tax.' },
     { key: 'employerTax', label: 'Tax on payments to employer', unit: '%', pct: true, step: 1, min: 0, max: 50 },
 
     { group: 'Recovery plan' },
@@ -99,7 +100,7 @@
     { key: 'probBelow100', label: (p) => onBasis(p, 'Chance funding dips below 100%', 1), fmt: fmtPct, better: 'down' },
     { key: 'probBelow100_2', show: (p) => p.basis2On, label: (p) => onBasis(p, 'Chance funding dips below 100%', 2), fmt: fmtPct, better: 'down' },
     { key: 'expEmployer', label: () => 'Expected surplus to employer (after tax)', fmt: fmtMoney, better: 'up' },
-    { key: 'expMember', label: () => 'Expected surplus to members', fmt: fmtMoney, better: 'up' },
+    { key: 'expMember', label: () => 'Expected surplus to members (before tax)', fmt: fmtMoney, better: 'up' },
     { key: 'expRemaining', label: (p) => `Surplus still in scheme, year ${p.horizon}`, fmt: fmtMoney },
     { key: 'probBuyout', only: 'buyout', label: (p) => `Chance of buyout by year ${p.horizon}`, fmt: fmtPct, better: 'up' },
     { key: 'medianBuyoutYear', only: 'buyout', label: () => 'Typical year of buyout, if it happens', fmt: fmtYear }
@@ -107,7 +108,7 @@
 
   const MONEY_SERIES = [
     { key: 'expEmployer', label: 'To employer (after tax)', color: '#1f3a5f' },
-    { key: 'expMember', label: 'To members', color: '#2a9d8f' },
+    { key: 'expMember', label: 'To members (before tax)', color: '#2a9d8f' },
     { key: 'expRemaining', label: 'Still in scheme at end', color: '#b8c0cc' },
     { key: 'expContrib', label: 'Employer contributions paid in', color: '#c2410c' }
   ];
