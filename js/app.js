@@ -31,7 +31,6 @@
     { key: 'basis2Margin', label: 'Discount rate: margin over gilts', auditLabel: 'Second basis: margin over gilts',
       unit: '%', pct: true, step: 0.1, min: -2, max: 5, optional: true, when: 'basis2On', custom: 'basis2-note' },
     { key: 'releaseBasis', label: 'Test surplus release on', type: 'select', when: 'basis2On' },
-    { key: 'contribBasis', label: 'Employer pays in when funding is below 100% on', type: 'select', when: 'basis2On' },
 
     { group: 'Growth assets', custom: 'growth' },
 
@@ -53,8 +52,15 @@
     { key: 'releaseThreshold', label: 'Release: anything above', unit: '% funded', pct: true, step: 1, min: 100, max: 200 },
     { key: 'memberShare', label: 'Share of surplus to members', unit: '%', pct: true, step: 5, min: 0, max: 100 },
     { key: 'employerTax', label: 'Tax on payments to employer', unit: '%', pct: true, step: 1, min: 0, max: 50 },
-    { key: 'recoveryYears', label: 'Deficit recovery period', unit: 'years', step: 1, min: 1, max: 20, int: true,
-      help: 'If funding falls below 100%, the employer pays the shortfall over this many years.' },
+
+    { group: 'Recovery plan' },
+    { key: 'valuationYears', label: 'Valuations every', unit: 'years', step: 1, min: 1, max: 10, int: true,
+      help: 'A deficit on the main funding basis at a valuation leads to a recovery plan, fixed until the next valuation.' },
+    { key: 'recoveryYears', label: 'Recovery period', unit: 'years', step: 1, min: 1, max: 20, int: true },
+    { key: 'rpOutperformance', label: 'Investment outperformance allowed for', unit: '% a year', pct: true, step: 0.1, min: 0, max: 5,
+      optional: true, help: 'Assumed return on the assets above the discount rate. Leave blank for no allowance.' },
+    { key: 'rpTrigger', label: 'Only set a plan if funding is below', unit: '%', pct: true, step: 1, min: 50, max: 100,
+      optional: true, help: 'Leave blank to set a plan for any deficit.' },
 
     { group: 'Simulation' },
     { key: 'horizon', label: 'Projection', unit: 'years', step: 1, min: 5, max: 40, int: true },
@@ -146,10 +152,12 @@
   // How a field's value reads in the run record.
   function auditValue(field, p) {
     const v = p[field.key];
+    if (v === null) return 'Not set';
     if (field.type === 'checkbox') return v ? 'Yes' : 'No';
     if (field.type === 'select') return escapeHtml(basisName(p, v));
     if (field.type === 'text') return escapeHtml(v);
-    return `${toDisplay(field, v)}${field.unit ? ` ${field.unit}` : ''}`;
+    const unit = field.unit === 'years' && v === 1 ? 'year' : field.unit;
+    return `${toDisplay(field, v)}${unit ? ` ${unit}` : ''}`;
   }
 
   function buildForm() {
@@ -192,11 +200,9 @@
   function refreshBasisUI() {
     const p = readParams();
     form.querySelectorAll('[data-when]').forEach((el) => { el.hidden = !form.elements[el.dataset.when].checked; });
-    ['releaseBasis', 'contribBasis'].forEach((key) => {
-      const select = form.elements[key];
-      select.options[0].textContent = basisName(p, 1);
-      select.options[1].textContent = basisName(p, 2);
-    });
+    const select = form.elements.releaseBasis;
+    select.options[0].textContent = basisName(p, 1);
+    select.options[1].textContent = basisName(p, 2);
     if (p.basis2Pending) {
       document.getElementById('basis2-note').textContent = 'Enter a margin to add this basis to the results.';
       return;

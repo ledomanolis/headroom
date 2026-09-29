@@ -9,8 +9,11 @@
  *   - matching assets earn gilts + margin; growth assets earn gilts + premium + noise, where
  *     the premium and volatility come from the asset class mix and correlations
  *   - the interest rate and inflation hedges offset the chosen share of each liability sensitivity
- *   - if funding is below 100% (on the chosen basis), the employer pays the shortfall over the
- *     recovery period
+ *   - at each valuation (today, then every few years), a deficit on the main funding basis leads
+ *     to a recovery plan: a level annual contribution, fixed until the next valuation, that
+ *     clears the deficit over the recovery period at the discount rate, less any investment
+ *     outperformance allowed for on the assets. An optional trigger level sets a plan only
+ *     when funding is below it.
  * An optional second funding basis values the same benefits at a different margin over gilts,
  * using the liability duration: L2 = L * exp(-duration * (margin2 - margin)).
  * All three options use the same random scenarios so the comparison is like for like.
@@ -18,7 +21,7 @@
 (function (global) {
   'use strict';
 
-  const MODEL_VERSION = '0.3.0';
+  const MODEL_VERSION = '0.4.0';
   const MEAN_REVERSION = 0.1;   // pull of gilt yields and implied inflation back to their starting level each year
   const DURATION_RUNOFF = 0.3;  // liability duration shortens as the scheme matures
   const MIN_DURATION = 5;
@@ -38,7 +41,6 @@
     basis2Name: 'Second funding basis',
     basis2Margin: null, // entered by the user
     releaseBasis: 1,
-    contribBasis: 1,
     yieldVol: 0.007,
     inflationVol: 0.004,
     longevityVol: 0.004,
@@ -47,7 +49,10 @@
     releaseThreshold: 1.10,
     memberShare: 0.30,
     employerTax: 0.25,
+    valuationYears: 3,
     recoveryYears: 7,
+    rpOutperformance: null, // entered by the user; blank means no allowance
+    rpTrigger: null,        // entered by the user; blank means any deficit sets a plan
     horizon: 20,
     numSims: 2000,
     seed: 20260928
@@ -182,7 +187,8 @@
     const spread = basis2 ? p.basis2Margin - p.discountMargin : 0;
     const basis2Factor = (D) => Math.exp(-D * spread);
     const releaseFactor = (D) => (basis2 && p.releaseBasis === 2 ? basis2Factor(D) : 1);
-    const contribFactor = (D) => (basis2 && p.contribBasis === 2 ? basis2Factor(D) : 1);
+    const trigger = p.rpTrigger === null ? 1 : Math.min(p.rpTrigger, 1);
+    const outperformance = p.rpOutperformance || 0;
 
     const funding = new Float64Array(n * W);
     const funding2 = basis2 ? new Float64Array(n * W) : null;
@@ -197,6 +203,7 @@
       let below = A < L;
       let below2 = basis2 && A < L * basis2Factor(D);
       let frozen2 = 0; // funding on the second basis once bought out
+      let planContribution = 0, planYearsLeft = 0; // current recovery plan
 
       const payOut = (amount) => {
         employer += amount * (1 - p.memberShare) * (1 - p.employerTax);
@@ -218,11 +225,21 @@
       for (let t = 1; t <= H; t++) {
         if (boughtAt >= 0) { record(t); continue; }
 
-        const target = L * contribFactor(D);
-        if (A < target) {
-          const c = (target - A) / p.recoveryYears;
-          A += c;
-          contrib += c;
+        // Valuation at the start of the year: set a new recovery plan or end the current one.
+        if ((t - 1) % p.valuationYears === 0) {
+          planYearsLeft = 0;
+          if (A < L * trigger) {
+            const d = y + p.discountMargin;
+            const R = p.recoveryYears;
+            const annuity = Math.abs(d) > 1e-9 ? (1 - Math.pow(1 + d, -R)) / d : R;
+            planContribution = Math.max(0, (L - A) / annuity - outperformance * A);
+            planYearsLeft = R;
+          }
+        }
+        if (planYearsLeft > 0) {
+          A += planContribution;
+          contrib += planContribution;
+          planYearsLeft--;
         }
 
         const k = s * H + t - 1;
