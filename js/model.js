@@ -43,7 +43,8 @@
     releaseBasis: 1,
     yieldVol: 0.007,
     inflationVol: 0.004,
-    longevityVol: 0.004,
+    longevitySensitivity: null, // liability increase per extra year of life expectancy; entered by the user
+    longevityVol: null,         // blank means no longevity uncertainty
     buyoutPremium: 0.08,
     buyoutGrowthPct: 0.10,
     releaseThreshold: 1.10,
@@ -113,7 +114,8 @@
     { key: 'inflationUp', label: 'Inflation expectations rise 1%',
       apply: (s, p) => inflationShock(s, p, 0.01) },
     { key: 'longevity', label: 'People live 1 year longer',
-      apply: (s) => ({ A: s.A, L: s.L * 1.04, y: s.y }) },
+      needs: 'longevitySensitivity',
+      apply: (s, p) => ({ A: s.A, L: s.L * (1 + (p.longevitySensitivity || 0)), y: s.y }) },
     { key: 'equityCrash', label: 'Growth assets fall 25%',
       apply: (s, p) => ({ A: s.A - s.A * p.growthPct * 0.25, L: s.L, y: s.y }) }
   ];
@@ -283,7 +285,7 @@
           + p.hedgeRatio * L * (rateFactor - 1)
           + p.inflationHedgeRatio * L * (inflationFactor - 1) - outgo;
         L = (L * (1 + matchingReturn) - outgo) * rateFactor * inflationFactor
-          * (1 + p.longevityVol * shocks.zL[k]);
+          * (1 + (p.longevityVol || 0) * shocks.zL[k]);
         A = Math.max(A, 0);
         y += dY;
         inflationDrift += dPi;

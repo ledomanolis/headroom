@@ -5,26 +5,50 @@
   const AS = window.HeadroomAssumptions;
   const MARKET = window.HEADROOM_MARKET || null;
 
-  // Market-linked inputs: the value at the liability duration, read off the Bank of England curves.
+  // Inputs with a sourced value: Bank of England curves read at the liability duration, and
+  // ONS life expectancy volatility scaled by the scheme's sensitivity to an extra year of life.
+  const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const MARKET_FIELDS = {
-    giltYield: { note: 'market-yield', button: 'Use market yield', curve: () => MARKET.giltCurve },
-    yieldVol: { note: 'market-yvol', button: 'Use historical', curve: () => volCurve('yieldVol') },
-    inflationVol: { note: 'market-ivol', button: 'Use historical', curve: () => volCurve('inflationVol') }
+    giltYield: {
+      note: 'market-yield', button: 'Use market yield',
+      value: (p) => atTerm(MARKET && MARKET.giltCurve, p.duration),
+      text: (p, v) => `Market: ${(v * 100).toFixed(2)}% at ${p.duration} years (Bank of England, ${fmtDate(MARKET.asAt)}).`
+    },
+    yieldVol: {
+      note: 'market-yvol', button: 'Use historical',
+      value: (p) => atTerm(volCurve('yieldVol'), p.duration),
+      text: (p, v) => `Historical: ${(v * 100).toFixed(2)}% at ${p.duration} years (Bank of England, 12-month changes, ` +
+        `${fmtDate(MARKET.volatility.from)} to ${fmtDate(MARKET.asAt)}).`
+    },
+    inflationVol: {
+      note: 'market-ivol', button: 'Use historical',
+      value: (p) => atTerm(volCurve('inflationVol'), p.duration),
+      text: (p, v) => `Historical: ${(v * 100).toFixed(2)}% at ${p.duration} years (Bank of England, 12-month changes, ` +
+        `${fmtDate(MARKET.volatility.from)} to ${fmtDate(MARKET.asAt)}).`
+    },
+    longevityVol: {
+      note: 'market-lvol', button: 'Use historical',
+      missing: 'Enter the liability increase per extra year of life expectancy to use the ONS-based figure.',
+      value: (p) => (MARKET && MARKET.longevity && p.longevitySensitivity !== null
+        ? +(MARKET.longevity.volYears * p.longevitySensitivity).toFixed(4) : null),
+      text: (p, v) => `Historical: ${(v * 100).toFixed(2)}% a year = ONS life expectancy at 65 varying by ` +
+        `${MARKET.longevity.volYears.toFixed(2)} years a year (${MARKET.longevity.fromPeriod} to ${MARKET.longevity.toPeriod}) ` +
+        `× ${(p.longevitySensitivity * 100).toFixed(1)}% per year.`
+    }
   };
 
   function volCurve(key) {
     return MARKET && MARKET.volatility ? MARKET.volatility.curve.map((c) => ({ term: c.term, yield: c[key] })) : null;
   }
 
-  function marketValue(key, term) {
-    const curve = MARKET && MARKET_FIELDS[key].curve();
+  function atTerm(curve, term) {
     return curve ? +M.yieldAtTerm(curve, term).toFixed(4) : null;
   }
 
-  // Starting values: model defaults, replaced by market data where it is available.
+  // Starting values: model defaults, replaced by sourced data where it is available.
   const START = Object.assign({}, M.DEFAULTS);
-  Object.keys(MARKET_FIELDS).forEach((key) => {
-    const v = marketValue(key, M.DEFAULTS.duration);
+  Object.entries(MARKET_FIELDS).forEach(([key, m]) => {
+    const v = m.value(M.DEFAULTS);
     if (v !== null) START[key] = v;
   });
 
@@ -37,6 +61,9 @@
     { key: 'duration', label: 'Liability duration', unit: 'years', step: 1, min: 2, max: 30 },
     { key: 'inflationLinkedPct', label: 'Inflation-linked benefits', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 100,
       help: 'Share of liabilities that rises with inflation (for example RPI or CPI pension increases).' },
+    { key: 'longevitySensitivity', label: 'Liability increase per extra year of life expectancy', unit: '% of liabilities',
+      pct: true, step: 0.5, min: 0, max: 15, optional: true,
+      help: 'Used for longevity uncertainty and the longevity stress. Leave blank to leave longevity out.' },
 
     { group: 'Funding basis' },
     { key: 'basis1Name', label: 'Basis name', auditLabel: 'Main basis name', type: 'text' },
@@ -60,7 +87,8 @@
     { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market-yield' },
     { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-yvol' },
     { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-ivol' },
-    { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
+    { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% of liabilities a year', pct: true, step: 0.01, min: 0, max: 3,
+      optional: true, custom: 'market-lvol' },
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
 
     { group: 'The options' },
@@ -247,20 +275,15 @@
   }
 
   function renderMarketNote() {
-    const duration = readParams().duration;
-    const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const p = readParams();
     Object.entries(MARKET_FIELDS).forEach(([key, m]) => {
       const el = document.getElementById(m.note);
-      const v = marketValue(key, duration);
+      const v = m.value(p);
       if (v === null) {
-        el.textContent = 'No market data loaded. Run tools/update-market-data.ps1 to fetch it.';
+        el.textContent = MARKET && m.missing ? m.missing : 'No market data loaded. Run tools/update-market-data.ps1 to fetch it.';
         return;
       }
-      const source = key === 'giltYield'
-        ? `Market: ${(v * 100).toFixed(2)}% at ${duration} years (Bank of England, ${fmtDate(MARKET.asAt)}).`
-        : `Historical: ${(v * 100).toFixed(2)}% at ${duration} years (Bank of England, 12-month changes, ` +
-          `${fmtDate(MARKET.volatility.from)} to ${fmtDate(MARKET.asAt)}).`;
-      el.innerHTML = `${source} <button type="button" class="link" data-use-market="${key}">${m.button}</button>`;
+      el.innerHTML = `${escapeHtml(m.text(p, v))} <button type="button" class="link" data-use-market="${key}">${m.button}</button>`;
     });
   }
 
@@ -434,6 +457,20 @@
         update();
       });
       stressBox.appendChild(btn);
+    });
+  }
+
+  // Stresses that need an input (e.g. longevity sensitivity) are unavailable until it is entered.
+  function refreshStresses(p) {
+    M.STRESSES.forEach((s) => {
+      const btn = stressBox.querySelector(`[data-key="${s.key}"]`);
+      const unavailable = !!s.needs && p[s.needs] === null;
+      btn.disabled = unavailable;
+      btn.title = unavailable ? 'Enter the liability increase per extra year of life expectancy to use this stress.' : '';
+      if (unavailable && activeStresses.has(s.key)) {
+        activeStresses.delete(s.key);
+        btn.setAttribute('aria-pressed', 'false');
+      }
     });
   }
 
@@ -641,6 +678,7 @@
 
   function update() {
     const p = readParams();
+    refreshStresses(p);
     const stresses = [...activeStresses];
     const run = M.run(p, stresses);
     const base = stresses.length ? M.run(p, []) : null;
@@ -681,7 +719,12 @@
   }
 
   form.addEventListener('input', (e) => {
-    if (e.target.name === 'duration') renderMarketNote();
+    // Fill longevity uncertainty from the ONS figure the first time a sensitivity is entered.
+    if (e.target.name === 'longevitySensitivity' && form.elements.longevityVol.value === '') {
+      const v = MARKET_FIELDS.longevityVol.value(readParams());
+      if (v !== null) form.elements.longevityVol.value = +(v * 100).toFixed(2);
+    }
+    renderMarketNote();
     refreshBasisUI();
     scheduleUpdate();
   });
@@ -701,7 +744,7 @@
   form.addEventListener('click', (e) => {
     const key = e.target.dataset.useMarket;
     if (!key) return;
-    form.elements[key].value = +(marketValue(key, readParams().duration) * 100).toFixed(2);
+    form.elements[key].value = +(MARKET_FIELDS[key].value(readParams()) * 100).toFixed(2);
     update();
   });
   document.getElementById('reset').addEventListener('click', () => {

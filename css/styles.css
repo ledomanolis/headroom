@@ -204,6 +204,7 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   font-size: 13px;
 }
 .chip:hover { border-color: var(--brand); }
+.chip:disabled { opacity: 0.45; cursor: not-allowed; border-color: #cfd4dc; }
 .chip[aria-pressed="true"] { background: var(--worse); border-color: var(--worse); color: #fff; }
 
 /* Strategy cards */
