@@ -57,7 +57,8 @@
     { key: 'rpOn', label: 'Employer pays deficit contributions', type: 'checkbox',
       help: 'Untick to leave any deficit to be closed by investment returns alone.' },
     { key: 'valuationYears', label: 'Valuations every', unit: 'years', step: 1, min: 1, max: 10, int: true, when: 'rpOn',
-      help: 'A deficit on the main funding basis at a valuation leads to a recovery plan, fixed until the next valuation.' },
+      help: 'A deficit at a valuation leads to a recovery plan, fixed until the next valuation.' },
+    { key: 'rpBasis', label: 'Funding basis for the recovery plan', type: 'select', when: ['rpOn', 'basis2On'] },
     { key: 'recoveryYears', label: 'Recovery period', unit: 'years', step: 1, min: 1, max: 20, int: true, when: 'rpOn' },
     { key: 'rpOutperformance', label: 'Investment outperformance allowed for', unit: '% a year', pct: true, step: 0.1, min: 0, max: 5,
       optional: true, when: 'rpOn', help: 'Assumed return on the assets above the discount rate. Leave blank for no allowance.' },
@@ -173,7 +174,7 @@
       }
       const wrap = document.createElement('label');
       wrap.className = f.type === 'checkbox' ? 'field check' : 'field';
-      if (f.when) wrap.dataset.when = f.when;
+      if (f.when) wrap.dataset.when = [].concat(f.when).join(' ');
       let control;
       if (f.type === 'checkbox') {
         control = `<input type="checkbox" name="${f.key}"><span class="field-label">${f.label}</span>`;
@@ -201,10 +202,14 @@
   // Shows or hides the second basis inputs and keeps basis names in step.
   function refreshBasisUI() {
     const p = readParams();
-    form.querySelectorAll('[data-when]').forEach((el) => { el.hidden = !form.elements[el.dataset.when].checked; });
-    const select = form.elements.releaseBasis;
-    select.options[0].textContent = basisName(p, 1);
-    select.options[1].textContent = basisName(p, 2);
+    form.querySelectorAll('[data-when]').forEach((el) => {
+      el.hidden = !el.dataset.when.split(' ').every((key) => form.elements[key].checked);
+    });
+    ['releaseBasis', 'rpBasis'].forEach((key) => {
+      const select = form.elements[key];
+      select.options[0].textContent = basisName(p, 1);
+      select.options[1].textContent = basisName(p, 2);
+    });
     if (p.basis2Pending) {
       document.getElementById('basis2-note').textContent = 'Enter a margin to add this basis to the results.';
       return;
@@ -575,7 +580,7 @@
       ? record.stresses.map((k) => M.STRESSES.find((s) => s.key === k).label).join(', ')
       : 'None';
     const p = record.inputs;
-    const inputs = FIELDS.filter((f) => f.key && (!f.when || p[f.when])).map((f) => `
+    const inputs = FIELDS.filter((f) => f.key && [].concat(f.when || []).every((k) => p[k])).map((f) => `
       <div><dt>${f.auditLabel || f.label}</dt><dd>${auditValue(f, p)}</dd></div>`).join('');
     const set = record.assumptionSet;
     const growth = set.classes.map((c) => `

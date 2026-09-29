@@ -9,7 +9,7 @@
  *   - matching assets earn gilts + margin; growth assets earn gilts + premium + noise, where
  *     the premium and volatility come from the asset class mix and correlations
  *   - the interest rate and inflation hedges offset the chosen share of each liability sensitivity
- *   - at each valuation (today, then every few years), a deficit on the main funding basis leads
+ *   - at each valuation (today, then every few years), a deficit on the chosen funding basis leads
  *     to a recovery plan: a level annual contribution, fixed until the next valuation, that
  *     clears the deficit over the recovery period at the discount rate, less any investment
  *     outperformance allowed for on the assets. An optional trigger level sets a plan only
@@ -51,6 +51,7 @@
     employerTax: 0.25,
     rpOn: true,             // employer pays deficit contributions under recovery plans
     valuationYears: 3,
+    rpBasis: 1,             // funding basis the recovery plan uses (2 = second basis, if added)
     recoveryYears: 7,
     rpOutperformance: null, // entered by the user; blank means no allowance
     rpTrigger: null,        // entered by the user; blank means any deficit sets a plan
@@ -188,6 +189,9 @@
     const spread = basis2 ? p.basis2Margin - p.discountMargin : 0;
     const basis2Factor = (D) => Math.exp(-D * spread);
     const releaseFactor = (D) => (basis2 && p.releaseBasis === 2 ? basis2Factor(D) : 1);
+    const rpOnBasis2 = basis2 && p.rpBasis === 2;
+    const rpFactor = (D) => (rpOnBasis2 ? basis2Factor(D) : 1);
+    const rpMargin = rpOnBasis2 ? p.basis2Margin : p.discountMargin;
     const trigger = p.rpTrigger === null ? 1 : Math.min(p.rpTrigger, 1);
     const outperformance = p.rpOutperformance || 0;
 
@@ -229,11 +233,12 @@
         // Valuation at the start of the year: set a new recovery plan or end the current one.
         if (p.rpOn && (t - 1) % p.valuationYears === 0) {
           planYearsLeft = 0;
-          if (A < L * trigger) {
-            const d = y + p.discountMargin;
+          const Lrp = L * rpFactor(D);
+          if (A < Lrp * trigger) {
+            const d = y + rpMargin;
             const R = p.recoveryYears;
             const annuity = Math.abs(d) > 1e-9 ? (1 - Math.pow(1 + d, -R)) / d : R;
-            planContribution = Math.max(0, (L - A) / annuity - outperformance * A);
+            planContribution = Math.max(0, (Lrp - A) / annuity - outperformance * A);
             planYearsLeft = R;
           }
         }
