@@ -209,9 +209,14 @@
     const funding = new Float64Array(n * W);
     const funding2 = basis2 ? new Float64Array(n * W) : null;
 
-    let nContrib = 0, nBought = 0;
-    let totContrib = 0, totEmployer = 0, totMember = 0, totRemaining = 0;
-    const buyoutYears = [];
+    // Running totals by year (index t = position at the end of year t; 0 = today).
+    const anyContribBy = new Float64Array(W);
+    const contribBy = new Float64Array(W);
+    const employerBy = new Float64Array(W);
+    const memberBy = new Float64Array(W);
+    const remainingAt = new Float64Array(W);
+    const boughtBy = new Float64Array(W);
+    const boughtIn = new Float64Array(W); // number bought out in exactly year t
 
     for (let s = 0; s < n; s++) {
       let A = start.A, L = start.L, y = start.y, D = p.duration, inflationDrift = 0;
@@ -226,10 +231,17 @@
       const record = (t) => {
         funding[s * W + t] = boughtAt >= 0 ? buyoutLevel : A / L;
         if (basis2) funding2[s * W + t] = boughtAt >= 0 ? frozen2 : A / (L * basis2Factor(D));
+        if (contrib > 0) anyContribBy[t]++;
+        contribBy[t] += contrib;
+        employerBy[t] += employer;
+        memberBy[t] += member;
+        if (boughtAt >= 0) boughtBy[t]++;
+        else remainingAt[t] += Math.max(A - L, 0);
       };
       const buyOut = (t) => {
         payOut(A - L * buyoutLevel);
         boughtAt = t;
+        boughtIn[t]++;
         frozen2 = buyoutLevel / basis2Factor(D);
       };
 
@@ -287,38 +299,39 @@
         }
         record(t);
       }
-
-      if (contrib > 0) nContrib++;
-      if (boughtAt >= 0) {
-        nBought++;
-        buyoutYears.push(boughtAt);
-      } else {
-        totRemaining += Math.max(A - L, 0);
-      }
-      totContrib += contrib;
-      totEmployer += employer;
-      totMember += member;
     }
 
     const percentiles = percentilesOf(funding, n, W);
     const percentiles2 = basis2 ? percentilesOf(funding2, n, W) : null;
-    buyoutYears.sort((a, b) => a - b);
+    const mean = (arr) => Array.from(arr, (v) => v / n);
 
+    // Median year of buyout among scenarios bought out by year t.
+    const medianBuyoutYearBy = [];
+    for (let t = 0; t < W; t++) {
+      let target = boughtBy[t] / 2, cum = 0, year = null;
+      for (let u = 0; u <= t && boughtBy[t] > 0; u++) {
+        cum += boughtIn[u];
+        if (cum >= target) { year = u; break; }
+      }
+      medianBuyoutYearBy.push(year);
+    }
+
+    // Every metric is an array by year, so results can be read at any year up to the horizon.
     return {
       strategy,
       percentiles,
       percentiles2,
-      medianFundingEnd: percentiles.p50[H] / 100,
-      medianFundingEnd2: basis2 ? percentiles2.p50[H] / 100 : null,
-      probContrib: nContrib / n,
-      expContrib: totContrib / n,
-      probBelowByYear: shareBelow100(funding, n, W),
-      probBelowByYear2: basis2 ? shareBelow100(funding2, n, W) : null,
-      expEmployer: totEmployer / n,
-      expMember: totMember / n,
-      expRemaining: totRemaining / n,
-      probBuyout: nBought / n,
-      medianBuyoutYear: buyoutYears.length ? quantile(buyoutYears, 0.5) : null
+      medianFunding: percentiles.p50.map((v) => v / 100),
+      medianFunding2: basis2 ? percentiles2.p50.map((v) => v / 100) : null,
+      probBelow: shareBelow100(funding, n, W),
+      probBelow2: basis2 ? shareBelow100(funding2, n, W) : null,
+      probContrib: mean(anyContribBy),
+      expContrib: mean(contribBy),
+      expEmployer: mean(employerBy),
+      expMember: mean(memberBy),
+      expRemaining: mean(remainingAt),
+      probBuyout: mean(boughtBy),
+      medianBuyoutYear: medianBuyoutYearBy
     };
   }
 

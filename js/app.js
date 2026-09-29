@@ -92,26 +92,25 @@
   // Adds the basis name to a label, but only when there is more than one basis to tell apart.
   const onBasis = (p, text, basis) => (p.basis2On ? `${text} (${escapeHtml(basisName(p, basis))})` : text);
 
+  // Every metric is read at the year chosen with the year switch (viewYear).
   const ROWS = [
-    { key: 'medianFundingEnd', label: (p) => onBasis(p, `Median funding in year ${p.horizon}`, 1), fmt: fmtPct, better: 'up' },
-    { key: 'medianFundingEnd2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Median funding in year ${p.horizon}`, 2), fmt: fmtPct, better: 'up' },
-    { key: 'probContrib', label: () => 'Chance employer has to pay in more', fmt: fmtPct, better: 'down' },
-    { key: 'expContrib', label: () => 'Expected employer contributions', fmt: fmtMoney, better: 'down' },
-    { key: 'probBelow', value: (r) => r.probBelowByYear[belowYear],
-      label: (p) => onBasis(p, `Chance funding is below 100% in year ${belowYear}`, 1), fmt: fmtPct, better: 'down' },
-    { key: 'probBelow2', show: (p) => p.basis2On, value: (r) => r.probBelowByYear2[belowYear],
-      label: (p) => onBasis(p, `Chance funding is below 100% in year ${belowYear}`, 2), fmt: fmtPct, better: 'down' },
-    { key: 'expEmployer', label: () => 'Expected surplus to employer (after tax)', fmt: fmtMoney, better: 'up' },
-    { key: 'expMember', label: () => 'Expected surplus to members (before tax)', fmt: fmtMoney, better: 'up' },
-    { key: 'expRemaining', label: (p) => `Surplus still in scheme, year ${p.horizon}`, fmt: fmtMoney },
-    { key: 'probBuyout', only: 'buyout', label: (p) => `Chance of buyout by year ${p.horizon}`, fmt: fmtPct, better: 'up' },
-    { key: 'medianBuyoutYear', only: 'buyout', label: () => 'Typical year of buyout, if it happens', fmt: fmtYear }
+    { key: 'medianFunding', label: (p) => onBasis(p, `Median funding in year ${viewYear}`, 1), fmt: fmtPct, better: 'up' },
+    { key: 'medianFunding2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Median funding in year ${viewYear}`, 2), fmt: fmtPct, better: 'up' },
+    { key: 'probBelow', label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 1), fmt: fmtPct, better: 'down' },
+    { key: 'probBelow2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 2), fmt: fmtPct, better: 'down' },
+    { key: 'probContrib', label: () => `Chance employer pays in by year ${viewYear}`, fmt: fmtPct, better: 'down' },
+    { key: 'expContrib', label: () => `Expected employer contributions by year ${viewYear}`, fmt: fmtMoney, better: 'down' },
+    { key: 'expEmployer', label: () => `Expected surplus to employer by year ${viewYear} (after tax)`, fmt: fmtMoney, better: 'up' },
+    { key: 'expMember', label: () => `Expected surplus to members by year ${viewYear} (before tax)`, fmt: fmtMoney, better: 'up' },
+    { key: 'expRemaining', label: () => `Surplus still in scheme in year ${viewYear}`, fmt: fmtMoney },
+    { key: 'probBuyout', only: 'buyout', label: () => `Chance of buyout by year ${viewYear}`, fmt: fmtPct, better: 'up' },
+    { key: 'medianBuyoutYear', only: 'buyout', label: () => `Typical year of buyout, if by year ${viewYear}`, fmt: fmtYear }
   ];
 
   const MONEY_SERIES = [
     { key: 'expEmployer', label: 'To employer (after tax)', color: '#1f3a5f' },
     { key: 'expMember', label: 'To members (before tax)', color: '#2a9d8f' },
-    { key: 'expRemaining', label: 'Still in scheme at end', color: '#b8c0cc' },
+    { key: 'expRemaining', label: 'Still in scheme', color: '#b8c0cc' },
     { key: 'expContrib', label: 'Employer contributions paid in', color: '#c2410c' }
   ];
 
@@ -126,8 +125,8 @@
   let allocation = Object.assign({}, AS.DEFAULT_ALLOCATION);
   let setMessage = null; // { kind: 'error' | 'info', lines: [] }
   let chartBasis = 1;
-  const BELOW_YEARS = [5, 10, 20];
-  let belowYear = BELOW_YEARS[0];
+  const VIEW_YEARS = [5, 10, 20];
+  let viewYear = VIEW_YEARS[VIEW_YEARS.length - 1];
 
   function basisName(p, basis) {
     return (basis === 2 ? p.basis2Name : p.basis1Name) || (basis === 2 ? 'Second funding basis' : 'Main funding basis');
@@ -441,10 +440,10 @@
   }
 
   function renderYearToggle(p) {
-    const years = BELOW_YEARS.filter((y) => y <= p.horizon);
-    if (!years.includes(belowYear)) belowYear = years[years.length - 1];
+    const years = VIEW_YEARS.filter((y) => y <= p.horizon);
+    if (!years.includes(viewYear)) viewYear = years[years.length - 1];
     document.getElementById('year-toggle').innerHTML = years.map((y) => `
-      <button type="button" data-year="${y}" aria-pressed="${y === belowYear}">Year ${y}</button>`).join('');
+      <button type="button" data-year="${y}" aria-pressed="${y === viewYear}">Year ${y}</button>`).join('');
   }
 
   function renderCards(p, results, baseResults) {
@@ -452,7 +451,7 @@
     box.innerHTML = results.map((r, i) => {
       const info = INFO[r.strategy];
       const base = baseResults ? baseResults[i] : null;
-      const val = (row, res) => (row.value ? row.value(res) : res[row.key]);
+      const val = (row, res) => res[row.key][viewYear];
       const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && (!row.show || row.show(p))).map((row) => `
         <div class="row">
           <dt>${row.label(p)}</dt>
@@ -555,10 +554,12 @@
   }
 
   function renderMoneyChart(results) {
+    document.getElementById('money-sub').textContent =
+      `Average across all scenarios over the first ${viewYear} years, in £m, not discounted.`;
     const labels = results.map((r) => INFO[r.strategy].name);
     const datasets = MONEY_SERIES.map((s) => ({
       label: s.label,
-      data: results.map((r) => +r[s.key].toFixed(1)),
+      data: results.map((r) => +r[s.key][viewYear].toFixed(1)),
       backgroundColor: s.color,
       borderRadius: 4,
       maxBarThickness: 36
@@ -665,7 +666,7 @@
   document.getElementById('year-toggle').addEventListener('click', (e) => {
     const b = e.target.closest('[data-year]');
     if (!b) return;
-    belowYear = Number(b.dataset.year);
+    viewYear = Number(b.dataset.year);
     update();
   });
   document.getElementById('basis-toggle').addEventListener('click', (e) => {
