@@ -207,6 +207,7 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .chip[aria-pressed="true"] { background: var(--worse); border-color: var(--worse); color: #fff; }
 
 /* Strategy cards */
+.cards-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: -8px; font-size: 13px; color: var(--muted); }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .card {
   background: var(--surface);

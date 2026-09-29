@@ -97,8 +97,10 @@
     { key: 'medianFundingEnd2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Median funding in year ${p.horizon}`, 2), fmt: fmtPct, better: 'up' },
     { key: 'probContrib', label: () => 'Chance employer has to pay in more', fmt: fmtPct, better: 'down' },
     { key: 'expContrib', label: () => 'Expected employer contributions', fmt: fmtMoney, better: 'down' },
-    { key: 'probBelow100', label: (p) => onBasis(p, 'Chance funding dips below 100%', 1), fmt: fmtPct, better: 'down' },
-    { key: 'probBelow100_2', show: (p) => p.basis2On, label: (p) => onBasis(p, 'Chance funding dips below 100%', 2), fmt: fmtPct, better: 'down' },
+    { key: 'probBelow', value: (r) => r.probBelowByYear[belowYear],
+      label: (p) => onBasis(p, `Chance funding is below 100% in year ${belowYear}`, 1), fmt: fmtPct, better: 'down' },
+    { key: 'probBelow2', show: (p) => p.basis2On, value: (r) => r.probBelowByYear2[belowYear],
+      label: (p) => onBasis(p, `Chance funding is below 100% in year ${belowYear}`, 2), fmt: fmtPct, better: 'down' },
     { key: 'expEmployer', label: () => 'Expected surplus to employer (after tax)', fmt: fmtMoney, better: 'up' },
     { key: 'expMember', label: () => 'Expected surplus to members (before tax)', fmt: fmtMoney, better: 'up' },
     { key: 'expRemaining', label: (p) => `Surplus still in scheme, year ${p.horizon}`, fmt: fmtMoney },
@@ -124,6 +126,8 @@
   let allocation = Object.assign({}, AS.DEFAULT_ALLOCATION);
   let setMessage = null; // { kind: 'error' | 'info', lines: [] }
   let chartBasis = 1;
+  const BELOW_YEARS = [5, 10, 20];
+  let belowYear = BELOW_YEARS[0];
 
   function basisName(p, basis) {
     return (basis === 2 ? p.basis2Name : p.basis1Name) || (basis === 2 ? 'Second funding basis' : 'Main funding basis');
@@ -436,15 +440,23 @@
     return `<span class="delta ${cls}">was ${row.fmt(base)}</span>`;
   }
 
+  function renderYearToggle(p) {
+    const years = BELOW_YEARS.filter((y) => y <= p.horizon);
+    if (!years.includes(belowYear)) belowYear = years[years.length - 1];
+    document.getElementById('year-toggle').innerHTML = years.map((y) => `
+      <button type="button" data-year="${y}" aria-pressed="${y === belowYear}">Year ${y}</button>`).join('');
+  }
+
   function renderCards(p, results, baseResults) {
     const box = document.getElementById('cards');
     box.innerHTML = results.map((r, i) => {
       const info = INFO[r.strategy];
       const base = baseResults ? baseResults[i] : null;
+      const val = (row, res) => (row.value ? row.value(res) : res[row.key]);
       const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && (!row.show || row.show(p))).map((row) => `
         <div class="row">
           <dt>${row.label(p)}</dt>
-          <dd><span class="val">${row.fmt(r[row.key])}</span>${base ? deltaHtml(row, r[row.key], base[row.key]) : ''}</dd>
+          <dd><span class="val">${row.fmt(val(row, r))}</span>${base ? deltaHtml(row, val(row, r), val(row, base)) : ''}</dd>
         </div>`).join('');
       return `
         <article class="card" style="--c:${info.color}">
@@ -611,6 +623,7 @@
     const base = stresses.length ? M.run(p, []) : null;
 
     renderSnapshot(p, run.start);
+    renderYearToggle(p);
     renderCards(p, run.results, base ? base.results : null);
     renderBasisToggle(p);
     renderFanCharts(p, run.results);
@@ -648,6 +661,12 @@
     if (e.target.name === 'duration') renderMarketNote();
     refreshBasisUI();
     scheduleUpdate();
+  });
+  document.getElementById('year-toggle').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-year]');
+    if (!b) return;
+    belowYear = Number(b.dataset.year);
+    update();
   });
   document.getElementById('basis-toggle').addEventListener('click', (e) => {
     const b = e.target.closest('[data-basis]');

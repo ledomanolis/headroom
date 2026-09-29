@@ -177,6 +177,17 @@
     return out;
   }
 
+  // Share of scenarios below 100% funded at each year end (index 0 = today).
+  function shareBelow100(values, n, W) {
+    const out = [];
+    for (let t = 0; t < W; t++) {
+      let count = 0;
+      for (let s = 0; s < n; s++) if (values[s * W + t] < 1) count++;
+      out.push(count / n);
+    }
+    return out;
+  }
+
   function simulate(p, strategy, start, shocks) {
     const n = p.numSims;
     const H = p.horizon;
@@ -198,15 +209,13 @@
     const funding = new Float64Array(n * W);
     const funding2 = basis2 ? new Float64Array(n * W) : null;
 
-    let nContrib = 0, nBelow = 0, nBelow2 = 0, nBought = 0;
+    let nContrib = 0, nBought = 0;
     let totContrib = 0, totEmployer = 0, totMember = 0, totRemaining = 0;
     const buyoutYears = [];
 
     for (let s = 0; s < n; s++) {
       let A = start.A, L = start.L, y = start.y, D = p.duration, inflationDrift = 0;
       let contrib = 0, employer = 0, member = 0, boughtAt = -1;
-      let below = A < L;
-      let below2 = basis2 && A < L * basis2Factor(D);
       let frozen2 = 0; // funding on the second basis once bought out
       let planContribution = 0, planYearsLeft = 0; // current recovery plan
 
@@ -268,8 +277,6 @@
         inflationDrift += dPi;
         D = Math.max(D - DURATION_RUNOFF, MIN_DURATION);
 
-        if (A < L) below = true;
-        if (basis2 && A < L * basis2Factor(D)) below2 = true;
 
         const releaseLevel = L * releaseFactor(D) * p.releaseThreshold;
         if (strategy === 'buyout' && A >= L * buyoutLevel) {
@@ -282,8 +289,6 @@
       }
 
       if (contrib > 0) nContrib++;
-      if (below) nBelow++;
-      if (below2) nBelow2++;
       if (boughtAt >= 0) {
         nBought++;
         buyoutYears.push(boughtAt);
@@ -307,8 +312,8 @@
       medianFundingEnd2: basis2 ? percentiles2.p50[H] / 100 : null,
       probContrib: nContrib / n,
       expContrib: totContrib / n,
-      probBelow100: nBelow / n,
-      probBelow100_2: basis2 ? nBelow2 / n : null,
+      probBelowByYear: shareBelow100(funding, n, W),
+      probBelowByYear2: basis2 ? shareBelow100(funding2, n, W) : null,
       expEmployer: totEmployer / n,
       expMember: totMember / n,
       expRemaining: totRemaining / n,
