@@ -5,12 +5,28 @@
   const AS = window.HeadroomAssumptions;
   const MARKET = window.HEADROOM_MARKET || null;
 
-  // Starting values: model defaults, with today's gilt yield when market data is available.
-  const START = Object.assign({}, M.DEFAULTS, MARKET ? { giltYield: marketYield(M.DEFAULTS.duration) } : {});
+  // Market-linked inputs: the value at the liability duration, read off the Bank of England curves.
+  const MARKET_FIELDS = {
+    giltYield: { note: 'market-yield', button: 'Use market yield', curve: () => MARKET.giltCurve },
+    yieldVol: { note: 'market-yvol', button: 'Use historical', curve: () => volCurve('yieldVol') },
+    inflationVol: { note: 'market-ivol', button: 'Use historical', curve: () => volCurve('inflationVol') }
+  };
 
-  function marketYield(term) {
-    return +M.yieldAtTerm(MARKET.giltCurve, term).toFixed(4);
+  function volCurve(key) {
+    return MARKET && MARKET.volatility ? MARKET.volatility.curve.map((c) => ({ term: c.term, yield: c[key] })) : null;
   }
+
+  function marketValue(key, term) {
+    const curve = MARKET && MARKET_FIELDS[key].curve();
+    return curve ? +M.yieldAtTerm(curve, term).toFixed(4) : null;
+  }
+
+  // Starting values: model defaults, replaced by market data where it is available.
+  const START = Object.assign({}, M.DEFAULTS);
+  Object.keys(MARKET_FIELDS).forEach((key) => {
+    const v = marketValue(key, M.DEFAULTS.duration);
+    if (v !== null) START[key] = v;
+  });
 
   const FIELDS = [
     { group: 'Scheme today' },
@@ -41,9 +57,9 @@
       help: 'Share of the liabilities\' inflation sensitivity that the assets hedge.' },
 
     { group: 'Markets and pricing' },
-    { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market' },
-    { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
-    { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
+    { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market-yield' },
+    { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-yvol' },
+    { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-ivol' },
     { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% a year', pct: true, step: 0.1, min: 0, max: 3 },
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
 
@@ -231,15 +247,21 @@
   }
 
   function renderMarketNote() {
-    const el = document.getElementById('market');
-    if (!MARKET) {
-      el.textContent = 'No market data loaded. Run tools/update-market-data.ps1 to fetch current gilt yields.';
-      return;
-    }
     const duration = readParams().duration;
-    const asAt = new Date(MARKET.asAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    el.innerHTML = `Market: ${(marketYield(duration) * 100).toFixed(2)}% at ${duration} years
-      (Bank of England, ${asAt}). <button type="button" class="link" id="use-market">Use market yield</button>`;
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    Object.entries(MARKET_FIELDS).forEach(([key, m]) => {
+      const el = document.getElementById(m.note);
+      const v = marketValue(key, duration);
+      if (v === null) {
+        el.textContent = 'No market data loaded. Run tools/update-market-data.ps1 to fetch it.';
+        return;
+      }
+      const source = key === 'giltYield'
+        ? `Market: ${(v * 100).toFixed(2)}% at ${duration} years (Bank of England, ${fmtDate(MARKET.asAt)}).`
+        : `Historical: ${(v * 100).toFixed(2)}% at ${duration} years (Bank of England, 12-month changes, ` +
+          `${fmtDate(MARKET.volatility.from)} to ${fmtDate(MARKET.asAt)}).`;
+      el.innerHTML = `${source} <button type="button" class="link" data-use-market="${key}">${m.button}</button>`;
+    });
   }
 
   function allSets() {
@@ -677,8 +699,9 @@
   });
   form.addEventListener('submit', (e) => e.preventDefault());
   form.addEventListener('click', (e) => {
-    if (e.target.id !== 'use-market') return;
-    form.elements.giltYield.value = +(marketYield(readParams().duration) * 100).toFixed(2);
+    const key = e.target.dataset.useMarket;
+    if (!key) return;
+    form.elements[key].value = +(marketValue(key, readParams().duration) * 100).toFixed(2);
     update();
   });
   document.getElementById('reset').addEventListener('click', () => {

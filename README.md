@@ -18,7 +18,7 @@ Illustrative only. The model is deliberately simple and needs review by a qualif
   powershell -ExecutionPolicy Bypass -File tools\update-market-data.ps1
   ```
 
-  This rewrites `data/market-data.js`. The Bank of England site doesn't allow browsers to fetch its data directly, which is why the download happens in a script.
+  This rewrites `data/market-data.js`. It also works out **gilt yield volatility** and **implied inflation volatility** from the same Bank of England curves: the standard deviation of 12-month changes in month-end values over the last 10 years (change with `-LookbackYears 15`, for example). The app reads each at the liability duration. The Bank of England site doesn't allow browsers to fetch its data directly, which is why the download happens in a script.
 - **Growth asset classes**: each has an expected return over gilts and a volatility, and a correlation matrix combines them. The built-in set is placeholder numbers only.
 - **Quarterly assumption sets**: upload a CSV in the Growth assets panel. `templates/asset-class-assumptions-template.csv` shows the layout (it's the same as "Download as CSV" in the app). Uploads are checked (numbers, a symmetric matrix with 1s on the diagonal, internally consistent correlations) and saved in the browser they were uploaded in.
 - **Funding bases**: liabilities are valued on a main basis of gilts plus a margin. An optional second basis (name and margin entered by the user) revalues the same benefits at its own margin using the liability duration. You choose which basis the surplus release test uses.
