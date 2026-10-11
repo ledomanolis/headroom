@@ -143,10 +143,10 @@
     { key: 'probBelow', label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 1), fmt: fmtPct, better: 'down' },
     { key: 'probBelow2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 2), fmt: fmtPct, better: 'down' },
     { key: 'probContrib', label: () => `Chance employer pays in by year ${viewYear}`, fmt: fmtPct, better: 'down' },
-    { key: 'expContrib', label: () => `Expected employer contributions by year ${viewYear}`, fmt: fmtMoney, better: 'down' },
-    { key: 'expEmployer', label: () => `Expected surplus to employer by year ${viewYear} (after tax)`, fmt: fmtMoney, better: 'up' },
-    { key: 'expMember', label: () => `Expected surplus to members by year ${viewYear} (before tax)`, fmt: fmtMoney, better: 'up' },
-    { key: 'expRemaining', label: () => `Surplus still in scheme in year ${viewYear}`, fmt: fmtMoney },
+    { key: 'expContrib', except: 'buyout', label: () => `Expected employer contributions by year ${viewYear}`, fmt: fmtMoney, better: 'down' },
+    { key: 'expEmployer', except: 'buyout', label: () => `Expected surplus to employer by year ${viewYear} (after tax)`, fmt: fmtMoney, better: 'up' },
+    { key: 'expMember', except: 'buyout', label: () => `Expected surplus to members by year ${viewYear} (before tax)`, fmt: fmtMoney, better: 'up' },
+    { key: 'expRemaining', except: 'buyout', label: () => `Surplus still in scheme in year ${viewYear}`, fmt: fmtMoney },
     { key: 'probBuyout', only: 'buyout', label: () => `Chance of buyout by year ${viewYear}`, fmt: fmtPct, better: 'up' },
     { key: 'medianBuyoutYear', only: 'buyout', label: () => `Typical year of buyout, if by year ${viewYear}`, fmt: fmtYear }
   ];
@@ -511,7 +511,7 @@
       const info = INFO[r.strategy];
       const base = baseResults ? baseResults[i] : null;
       const val = (row, res) => res[row.key][viewYear];
-      const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && (!row.show || row.show(p))).map((row) => `
+      const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && row.except !== r.strategy && (!row.show || row.show(p))).map((row) => `
         <div class="row">
           <dt>${row.label(p)}</dt>
           <dd><span class="val">${row.fmt(val(row, r))}</span>${base ? deltaHtml(row, val(row, r), val(row, base)) : ''}</dd>
