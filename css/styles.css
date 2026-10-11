@@ -1,14 +1,18 @@
 :root {
-  --ink: #16213a;
-  --muted: #5b6478;
-  --bg: #f4f5f7;
+  --ink: #12261f;
+  --muted: #55665f;
+  --bg: #f2f7f5;
   --surface: #ffffff;
-  --line: #e2e5ea;
-  --brand: #1f3a5f;
-  --brand-soft: #e8eef6;
-  --better: #2f855a;
+  --line: #dde7e3;
+  --control: #c9d6d1;
+  --mint: #3cc39a;          /* signature colour: header and accents */
+  --mint-ink: #0b3b2d;      /* text on mint */
+  --brand: #13805f;         /* buttons, links, selected states (white text passes contrast) */
+  --brand-soft: #e5f6f0;
+  --better: #13805f;
   --worse: #c2410c;
-  --radius: 10px;
+  --radius: 12px;
+  --display: 'Outfit', 'Inter', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -22,8 +26,8 @@ body {
   line-height: 1.45;
 }
 
-h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-h3 { font-size: 16px; font-weight: 600; margin: 0; }
+h2 { font-family: var(--display); font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+h3 { font-family: var(--display); font-size: 17px; font-weight: 600; margin: 0; }
 .sub { color: var(--muted); margin: 0 0 14px; }
 
 button { font: inherit; cursor: pointer; }
@@ -34,29 +38,31 @@ button { font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 24px;
-  background: var(--brand);
-  color: #fff;
+  padding: 14px 24px;
+  background: var(--mint);
+  color: var(--mint-ink);
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .logo {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: #fff;
   color: var(--brand);
-  font-weight: 700;
-  font-size: 18px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 22px;
 }
-.name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
-.tag { font-size: 12px; opacity: 0.8; }
+.name { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; }
+.tag { font-size: 13px; font-weight: 500; }
 .proto {
   font-size: 12px;
-  padding: 4px 10px;
+  font-weight: 500;
+  padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.55);
   white-space: nowrap;
 }
 
@@ -99,7 +105,7 @@ legend {
 .field-input input {
   width: 96px;
   padding: 6px 8px;
-  border: 1px solid #cfd4dc;
+  border: 1px solid var(--control);
   border-radius: 6px;
   font: inherit;
   color: var(--ink);
@@ -110,7 +116,7 @@ legend {
 .field-input input.wide, .field-input select.wide {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #cfd4dc;
+  border: 1px solid var(--control);
   border-radius: 6px;
   font: inherit;
   color: var(--ink);
@@ -122,10 +128,10 @@ legend {
 .field[hidden] { display: none; }
 
 .funding-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.basis-toggle { display: inline-flex; border: 1px solid #cfd4dc; border-radius: 8px; overflow: hidden; }
+.basis-toggle { display: inline-flex; border: 1px solid var(--control); border-radius: 999px; overflow: hidden; background: #fff; }
 .basis-toggle[hidden] { display: none; }
-.basis-toggle button { border: 0; background: #fff; color: var(--ink); padding: 6px 12px; font-size: 13px; }
-.basis-toggle button + button { border-left: 1px solid #cfd4dc; }
+.basis-toggle button { border: 0; background: #fff; color: var(--ink); padding: 6px 14px; font-size: 13px; font-weight: 500; }
+.basis-toggle button + button { border-left: 1px solid var(--control); }
 .basis-toggle button[aria-pressed="true"] { background: var(--brand); color: #fff; }
 .help { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
 
@@ -134,7 +140,7 @@ legend {
 .set-picker select {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #cfd4dc;
+  border: 1px solid var(--control);
   border-radius: 6px;
   font: inherit;
   color: var(--ink);
@@ -159,7 +165,7 @@ legend {
 .alloc-row input {
   width: 100%;
   padding: 5px 6px;
-  border: 1px solid #cfd4dc;
+  border: 1px solid var(--control);
   border-radius: 6px;
   font: inherit;
   text-align: right;
@@ -196,7 +202,7 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  border: 1px solid #cfd4dc;
+  border: 1px solid var(--control);
   background: #fff;
   color: var(--ink);
   border-radius: 999px;
@@ -204,7 +210,7 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   font-size: 13px;
 }
 .chip:hover { border-color: var(--brand); }
-.chip:disabled { opacity: 0.45; cursor: not-allowed; border-color: #cfd4dc; }
+.chip:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--control); }
 .chip[aria-pressed="true"] { background: var(--worse); border-color: var(--worse); color: #fff; }
 
 /* Strategy cards */
@@ -250,8 +256,9 @@ figcaption { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
   border: 1px solid var(--brand);
   background: var(--brand);
   color: #fff;
-  border-radius: 6px;
-  padding: 7px 14px;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 600;
   font-size: 13px;
 }
 .btn.secondary { background: #fff; color: var(--brand); }
@@ -287,8 +294,8 @@ figcaption { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
   body { background: #fff; font-size: 12px; }
   .panel, .actions, .chips button:not([aria-pressed="true"]), #reset { display: none !important; }
   .layout { display: block; padding: 0; }
-  .topbar { background: #fff; color: var(--ink); border-bottom: 2px solid var(--brand); }
-  .logo { background: var(--brand); color: #fff; }
+  .topbar { background: #fff; color: var(--ink); border-bottom: 3px solid var(--mint); }
+  .logo { background: var(--mint); color: #fff; }
   .proto { background: none; border: 1px solid var(--line); }
   .block, .card { break-inside: avoid; border-color: #ccc; }
   main { gap: 12px; }

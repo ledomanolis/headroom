@@ -119,7 +119,7 @@
 
   const INFO = {
     buyout: {
-      name: 'Buyout', color: '#3b5b92',
+      name: 'Buyout', color: '#3d5a99',
       blurb: (p) => `Cut growth assets to ${fmtPct(p.buyoutGrowthPct)} and insure the scheme as soon as the insurer's price is affordable.`
     },
     runon: {
@@ -127,7 +127,7 @@
       blurb: () => 'Keep running the scheme with today\'s investment strategy. Surplus builds up but stays inside.'
     },
     release: {
-      name: 'Surplus release', color: '#2f855a',
+      name: 'Surplus release', color: '#13805f',
       blurb: (p) => `Run on and release anything above ${fmtPct(p.releaseThreshold)} funded${p.basis2On
         ? ` on ${escapeHtml(theBasis(p, p.releaseBasis))}` : ''} each year, shared between employer and members.`
     }
@@ -152,9 +152,9 @@
   ];
 
   const MONEY_SERIES = [
-    { key: 'expEmployer', label: 'To employer (after tax)', color: '#1f3a5f' },
-    { key: 'expMember', label: 'To members (before tax)', color: '#2a9d8f' },
-    { key: 'expRemaining', label: 'Still in scheme', color: '#b8c0cc' },
+    { key: 'expEmployer', label: 'To employer (after tax)', color: '#0b3b2d' },
+    { key: 'expMember', label: 'To members (before tax)', color: '#3cc39a' },
+    { key: 'expRemaining', label: 'Still in scheme', color: '#bccac4' },
     { key: 'expContrib', label: 'Employer contributions paid in', color: '#c2410c' }
   ];
 
@@ -572,7 +572,7 @@
 
     results.forEach((r) => {
       const info = INFO[r.strategy];
-      const refs = [{ label: '100% funded', value: 100, color: '#8a93a3' }];
+      const refs = [{ label: '100% funded', value: 100, color: '#869690' }];
       if (r.strategy === 'buyout' && viewing === 1) refs.push({ label: 'Insurer price', value: (1 + p.buyoutPremium) * 100, color: info.color });
       if (r.strategy === 'release' && viewing === releaseBasis) refs.push({ label: 'Release above', value: p.releaseThreshold * 100, color: info.color });
       const datasets = fanDatasets(pcOf(r), info.color, refs);
@@ -604,7 +604,7 @@
             }
           },
           scales: {
-            y: { min: yMin, max: yMax, ticks: { callback: (v) => `${v}%` }, grid: { color: '#eef0f3' } },
+            y: { min: yMin, max: yMax, ticks: { callback: (v) => `${v}%` }, grid: { color: '#e9f0ed' } },
             x: { title: { display: true, text: 'Year' }, ticks: { maxTicksLimit: 6 }, grid: { display: false } }
           }
         }
@@ -641,7 +641,7 @@
           tooltip: { callbacks: { label: (c) => `${c.dataset.label}: £${c.parsed.y.toFixed(1)}m` } }
         },
         scales: {
-          y: { ticks: { callback: (v) => `£${v}m` }, grid: { color: '#eef0f3' }, beginAtZero: true },
+          y: { ticks: { callback: (v) => `£${v}m` }, grid: { color: '#e9f0ed' }, beginAtZero: true },
           x: { grid: { display: false } }
         }
       }
@@ -760,7 +760,7 @@
   document.getElementById('print').addEventListener('click', () => window.print());
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-  Chart.defaults.color = '#5b6478';
+  Chart.defaults.color = '#55665f';
 
   buildForm();
   renderGrowth();
