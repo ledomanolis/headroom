@@ -834,7 +834,7 @@
       <h2 class="r-break">Key assumptions</h2>
       <dl class="r-assumptions">${reportAssumptions(p, lastRun)}</dl>
       <p class="r-note">Model version ${lastRun.modelVersion}. Market data: ${lastRun.marketData ? `${escapeHtml(lastRun.marketData.source)}, as at ${lastRun.marketData.asAt}` : 'none loaded'}.
-        The full inputs and results are in the downloadable data file.</p>
+        The full inputs and year-by-year results are in the Excel download.</p>
       <p class="r-disclaimer">${document.querySelector('.limits').textContent.trim()}</p>`;
   }
 
@@ -863,7 +863,7 @@
       <dl class="audit-inputs wide">${growth}</dl>
       <p class="help">Portfolio: ${(record.inputs.growthPct * 100).toFixed(1)}% of assets,
         ${(record.inputs.growthPremium * 100).toFixed(2)}% a year over gilts, ${(record.inputs.growthVol * 100).toFixed(1)}% volatility.
-        The downloaded run record includes the full correlation matrix.</p>`;
+        The Excel download includes the full correlation matrix.</p>`;
   }
 
   function update() {
@@ -896,10 +896,137 @@
     renderAudit(lastRun);
   }
 
+  // ---------- Excel download ----------
+  // Cells can be plain values or { v, z } where z is an Excel number format.
+  const XL = {
+    pct: (v) => (v === null || v === undefined ? '' : { v, z: '0.0%' }),
+    pct2: (v) => (v === null || v === undefined ? '' : { v, z: '0.00%' }),
+    money: (v) => ({ v: +v.toFixed(3), z: '"£"#,##0.0"m";-"£"#,##0.0"m"' })
+  };
+
+  function toSheet(rows, widths) {
+    const ws = XLSX.utils.aoa_to_sheet(rows.map((r) => r.map((c) => (c && typeof c === 'object' ? c.v : c))));
+    rows.forEach((r, i) => r.forEach((c, j) => {
+      if (c && typeof c === 'object' && c.z) ws[XLSX.utils.encode_cell({ r: i, c: j })].z = c.z;
+    }));
+    ws['!cols'] = widths.map((w) => ({ wch: w }));
+    return ws;
+  }
+
+  function buildWorkbook(record) {
+    const p = record.inputs;
+    const results = record.results;
+    const names = results.map((r) => INFO[r.strategy].name);
+    const stressText = record.stresses.length
+      ? record.stresses.map((k) => M.STRESSES.find((s) => s.key === k).label).join(', ') : 'None';
+    const wb = XLSX.utils.book_new();
+
+    // 1. Summary: run details and the headline results for the chosen year.
+    const summary = [
+      ['Headroom: surplus options summary'],
+      [],
+      ['Run at', new Date(record.runAt).toLocaleString('en-GB')],
+      ['Model version', record.modelVersion],
+      ['Results for year', viewYear],
+      ['Stresses applied', stressText],
+      ['Asset class assumptions', `${record.assumptionSet.name}${record.assumptionSet.asAt ? `, as at ${record.assumptionSet.asAt}` : ''}`],
+      ['Market data', record.marketData ? `${record.marketData.source}, as at ${record.marketData.asAt}` : 'None loaded'],
+      [],
+      ['Scheme today'],
+      ['Assets', XL.money(record.startingPosition.A)],
+      [`Liabilities (${basisName(p, 1)})`, XL.money(record.startingPosition.L)],
+      ['Funding level', XL.pct(record.startingPosition.A / record.startingPosition.L)],
+      ['Insurer price', XL.money(record.startingPosition.L * (1 + p.buyoutPremium))],
+      [],
+      [`Results by year ${viewYear}`, ...names],
+      ...REPORT_ROWS.map((row) => [row.label, ...results.map((r) => {
+        const applies = (!row.only || row.only === r.strategy) && row.except !== r.strategy;
+        if (!applies) return '–';
+        const v = row.value ? row.value(r) : r[row.key][viewYear];
+        return row.fmt === fmtPct ? XL.pct(v) : XL.money(v);
+      })]),
+      [],
+      ['Averages across all scenarios, £m, not discounted. Net to employer is surplus received after tax less contributions paid in.'],
+      ['Illustrative only. Results need review by a qualified actuary before being relied on.']
+    ];
+    XLSX.utils.book_append_sheet(wb, toSheet(summary, [44, 20, 20, 20]), 'Summary');
+
+    // 2. Results by year: every figure for each option, one row per year.
+    const byYear = [['Option', 'Year', 'Median funding', 'Funding 5th percentile', 'Funding 95th percentile',
+      'Chance below 100%', 'Chance employer has paid in', 'Employer contributions to date',
+      'Surplus to employer to date (after tax)', 'Surplus to members to date (before tax)',
+      'Surplus still in scheme', 'Chance bought out']];
+    results.forEach((r) => {
+      r.medianFunding.forEach((_, t) => byYear.push([
+        INFO[r.strategy].name, t, XL.pct(r.medianFunding[t]), XL.pct(r.percentiles.p5[t] / 100), XL.pct(r.percentiles.p95[t] / 100),
+        XL.pct(r.probBelow[t]), XL.pct(r.probContrib[t]), XL.money(r.expContrib[t]),
+        XL.money(r.expEmployer[t]), XL.money(r.expMember[t]), XL.money(r.expRemaining[t]), XL.pct(r.probBuyout[t])
+      ]));
+    });
+    XLSX.utils.book_append_sheet(wb, toSheet(byYear, [16, 6, 14, 14, 14, 14, 16, 18, 20, 20, 16, 14]), 'Results by year');
+
+    // 3. Inputs: every assumption as entered.
+    const inputs = [['Section', 'Input', 'Value', 'Unit']];
+    let section = '';
+    FIELDS.forEach((f) => {
+      if (f.group) { section = f.group; return; }
+      if (![].concat(f.when || []).every((k) => p[k])) return;
+      const v = p[f.key];
+      let cell;
+      if (v === null) cell = 'Not set';
+      else if (f.type === 'checkbox') cell = v ? 'Yes' : 'No';
+      else if (f.type === 'select') cell = basisName(p, v);
+      else if (f.type === 'text') cell = v;
+      else cell = f.pct ? XL.pct2(v) : v;
+      inputs.push([section, f.auditLabel || f.label, cell, f.pct ? '' : f.unit || '']);
+    });
+    XLSX.utils.book_append_sheet(wb, toSheet(inputs, [26, 48, 22, 18]), 'Inputs');
+
+    // 4. Asset classes: allocations, assumptions and correlations.
+    const set = record.assumptionSet;
+    const classes = [
+      ['Assumption set', set.name], ['As at', set.asAt || ''], ['Source', set.source || ''], [],
+      ['Asset class', 'Allocation (% of assets)', 'Return over gilts', 'Volatility'],
+      ...set.classes.map((c) => [c.name, XL.pct(record.allocation[c.name] || 0), XL.pct2(c.premium), XL.pct(c.vol)]),
+      ['Growth portfolio', XL.pct(p.growthPct), XL.pct2(p.growthPremium), XL.pct(p.growthVol)],
+      [], ['Correlations', ...set.classes.map((c) => c.name)],
+      ...set.classes.map((c, i) => [c.name, ...set.corr[i]])
+    ];
+    XLSX.utils.book_append_sheet(wb, toSheet(classes, [26, ...set.classes.map(() => 16)]), 'Asset classes');
+
+    // 5. Market data used.
+    const m = record.marketData;
+    const market = m ? [
+      ['Source', m.source], ['As at', m.asAt], [],
+      ['Term (years)', 'Gilt yield', 'Gilt yield volatility', 'Implied inflation volatility'],
+      ...m.giltCurve.map((g) => {
+        const v = (m.volatility && m.volatility.curve.find((x) => x.term === g.term)) || {};
+        return [g.term, XL.pct2(g.yield), XL.pct2(v.yieldVol), XL.pct2(v.inflationVol)];
+      }),
+      [],
+      ['Volatility method', m.volatility ? `${m.volatility.method}, ${m.volatility.from} to ${m.asAt}` : ''],
+      ...(m.longevity ? [
+        [], ['Longevity source', m.longevity.source],
+        ['Method', `${m.longevity.method}, ${m.longevity.fromPeriod} to ${m.longevity.toPeriod}`],
+        ['Volatility (years a year)', m.longevity.volYears], [],
+        ['Period', 'Life expectancy at 65 (years)'],
+        ...m.longevity.lifeExpectancy65.map((x) => [x.period, x.years])
+      ] : [])
+    ] : [['No market data loaded']];
+    XLSX.utils.book_append_sheet(wb, toSheet(market, [26, 22, 22, 26]), 'Market data');
+
+    return wb;
+  }
+
   function download() {
     if (!lastRun) return;
-    downloadFile(`headroom-run-${lastRun.runAt.slice(0, 19).replace(/[:T]/g, '-')}.json`,
-      JSON.stringify(lastRun, null, 2), 'application/json');
+    if (!window.XLSX) {
+      window.alert('The Excel download needs an internet connection to load. Please check your connection and try again.');
+      return;
+    }
+    const d = new Date(lastRun.runAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(buildWorkbook(lastRun), `headroom-results-${date}.xlsx`);
   }
 
   let timer = null;
