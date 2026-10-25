@@ -69,7 +69,7 @@
           </span>
         </summary>
         <div class="actions">
-          <button type="button" id="print" class="btn">Print or save PDF summary</button>
+          <button type="button" id="pdf" class="btn">Download PDF summary</button>
           <button type="button" id="download" class="btn secondary">Download results (Excel)</button>
         </div>
         <div id="audit-body"></div>
@@ -84,11 +84,12 @@
     </main>
   </div>
 
-  <!-- Printable summary, filled in just before printing. Only this shows on paper. -->
-  <section class="report" id="report" aria-hidden="true"></section>
+  <!-- PDF summary, filled in when the PDF is generated. -->
+  <div class="report-host" aria-hidden="true"><section class="report" id="report"></section></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
   <script src="data/market-data.js"></script>
   <script src="js/assumptions.js"></script>
   <script src="js/model.js"></script>

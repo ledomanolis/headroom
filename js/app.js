@@ -1074,9 +1074,39 @@
     update();
   });
   document.getElementById('download').addEventListener('click', download);
-  document.getElementById('print').addEventListener('click', () => window.print());
-  // Paper gets a short summary report rather than the whole page.
+  document.getElementById('pdf').addEventListener('click', downloadPdf);
+  // If the page is printed from the browser, paper gets the summary rather than the whole page.
   window.addEventListener('beforeprint', buildReport);
+
+  async function downloadPdf() {
+    if (!lastRun) return;
+    if (!window.html2pdf) {
+      window.alert('The PDF download needs an internet connection to load. Please check your connection and try again.');
+      return;
+    }
+    const btn = document.getElementById('pdf');
+    const report = document.getElementById('report');
+    btn.disabled = true;
+    btn.textContent = 'Preparing PDF…';
+    buildReport();
+    report.classList.add('rendering');
+    const d = new Date(lastRun.runAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    try {
+      await html2pdf().set({
+        margin: [12, 12, 14, 12],
+        filename: `headroom-summary-${date}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css'], before: '.r-break', avoid: ['tr', '.r-charts', '.r-money', '.r-scheme', '.r-assumptions div'] }
+      }).from(report).save();
+    } finally {
+      report.classList.remove('rendering');
+      btn.disabled = false;
+      btn.textContent = 'Download PDF summary';
+    }
+  }
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.color = '#55665f';
