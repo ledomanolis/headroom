@@ -15,68 +15,61 @@
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true">H</span>
-      <div>
-        <div class="name">Headroom</div>
-        <div class="tag">DB surplus options, side by side</div>
-      </div>
+      <span class="name">Headroom</span>
+      <span class="tag">DB surplus options, side by side</span>
     </div>
-    <div class="proto">Prototype · illustrative only, not actuarial advice</div>
+    <span class="proto">Prototype · illustrative only, not actuarial advice</span>
   </header>
 
   <div class="layout">
     <aside class="panel">
       <div class="panel-head">
-        <h2>Scheme and assumptions</h2>
-        <button type="button" id="reset" class="link">Reset example</button>
+        <h2>Assumptions</h2>
+        <button type="button" id="reset" class="link">Reset</button>
       </div>
       <form id="form" autocomplete="off"></form>
     </aside>
 
     <main>
-      <section class="block top">
+      <section class="overview">
         <div class="snapshot" id="snapshot"></div>
+        <div class="controls">
+          <div class="control">
+            <span class="control-label">Results for</span>
+            <div class="segmented" id="year-toggle" role="group" aria-label="Year the results are shown for"></div>
+          </div>
+          <div class="control" id="basis-control" hidden>
+            <span class="control-label">Charts on</span>
+            <div class="segmented" id="basis-toggle" role="group" aria-label="Funding basis shown in the charts"></div>
+          </div>
+        </div>
         <div class="stress">
-          <h2>Stress test</h2>
-          <p class="sub">Apply an instant shock to the scheme today and see how each option copes.</p>
+          <span class="control-label">Stress test</span>
           <div class="chips" id="stresses"></div>
         </div>
       </section>
 
-      <div class="cards-bar">
-        <span>Show results and charts for</span>
-        <div class="basis-toggle" id="year-toggle" role="group" aria-label="Year the results are shown for"></div>
-      </div>
-      <section class="cards" id="cards"></section>
+      <section class="options" id="cards"></section>
+      <p class="chart-note" id="funding-sub"></p>
 
       <section class="block">
-        <div class="funding-head">
-          <h2>Funding level over time</h2>
-          <div class="basis-toggle" id="basis-toggle" role="group" aria-label="Funding basis shown" hidden></div>
+        <div class="block-head">
+          <h2>Where the money goes</h2>
+          <p class="sub" id="money-sub"></p>
         </div>
-        <p class="sub" id="funding-sub">On the chosen funding basis. The line is the median outcome. Shaded bands cover the middle 50% and 90% of scenarios.</p>
-        <div class="charts">
-          <figure><figcaption>Buyout</figcaption><div class="chart-box"><canvas id="chart-buyout"></canvas></div></figure>
-          <figure><figcaption>Run-on</figcaption><div class="chart-box"><canvas id="chart-runon"></canvas></div></figure>
-          <figure><figcaption>Surplus release</figcaption><div class="chart-box"><canvas id="chart-release"></canvas></div></figure>
-        </div>
-      </section>
-
-      <section class="block">
-        <h2>Where the money goes</h2>
-        <p class="sub" id="money-sub">Average across all scenarios, in £m, not discounted.</p>
         <div class="chart-box tall"><canvas id="chart-money"></canvas></div>
       </section>
 
-      <section class="block" id="audit">
-        <div class="audit-head">
-          <div>
+      <details class="block audit" id="audit">
+        <summary>
+          <span>
             <h2>Run record</h2>
-            <p class="sub">Everything needed to reproduce these results.</p>
-          </div>
-          <div class="actions">
-            <button type="button" id="download" class="btn">Download run record</button>
-            <button type="button" id="print" class="btn secondary">Print or save as PDF</button>
-          </div>
+            <span class="sub">Inputs, sources and model version behind these results</span>
+          </span>
+        </summary>
+        <div class="actions">
+          <button type="button" id="download" class="btn">Download run record</button>
+          <button type="button" id="print" class="btn secondary">Print or save as PDF</button>
         </div>
         <div id="audit-body"></div>
         <p class="limits">
@@ -86,7 +79,7 @@
           yields and inflation. It does not model realised inflation caps and floors, collateral calls, covenant or
           detailed insurer pricing. Results need review by a qualified actuary before being relied on.
         </p>
-      </section>
+      </details>
     </main>
   </div>
 

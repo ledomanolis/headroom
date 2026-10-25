@@ -154,6 +154,16 @@
     { key: 'medianBuyoutYear', only: 'buyout', label: () => `Typical year of buyout, if by year ${viewYear}`, fmt: fmtYear }
   ];
 
+  // The few big numbers shown on each option card; everything else sits under "More detail".
+  const HEADLINES = [
+    { key: 'medianFunding', label: (p) => onBasis(p, 'Median funding', 1), fmt: fmtPct, better: 'up' },
+    { key: 'probBelow', label: (p) => onBasis(p, 'Chance below 100%', 1), fmt: fmtPct, better: 'down' },
+    { key: 'probContrib', label: () => 'Chance employer pays in', fmt: fmtPct, better: 'down' },
+    { key: 'probBuyout', only: 'buyout', label: () => 'Chance of buyout', fmt: fmtPct, better: 'up' },
+    { key: 'expRemaining', only: 'runon', label: () => 'Surplus still in scheme', fmt: fmtMoney },
+    { key: 'expEmployer', only: 'release', label: () => 'Surplus to employer (after tax)', fmt: fmtMoney, better: 'up' }
+  ];
+
   const MONEY_SERIES = [
     { key: 'expEmployer', label: 'To employer (after tax)', color: '#0b3b2d' },
     { key: 'expMember', label: 'To members (before tax)', color: '#3cc39a' },
@@ -215,12 +225,16 @@
   }
 
   function buildForm() {
+    // Each group is a collapsible section; only the first starts open.
     let fieldset = null;
     FIELDS.forEach((f) => {
       if (f.group) {
-        fieldset = document.createElement('fieldset');
-        fieldset.innerHTML = `<legend>${f.group}</legend>${f.custom ? `<div id="${f.custom}"></div>` : ''}`;
-        form.appendChild(fieldset);
+        const section = document.createElement('details');
+        section.className = 'section';
+        section.open = !form.children.length;
+        section.innerHTML = `<summary>${f.group}</summary><div class="section-body">${f.custom ? `<div id="${f.custom}"></div>` : ''}</div>`;
+        form.appendChild(section);
+        fieldset = section.querySelector('.section-body');
         return;
       }
       const wrap = document.createElement('label');
@@ -508,24 +522,37 @@
       <button type="button" data-year="${y}" aria-pressed="${y === viewYear}">Year ${y}</button>`).join('');
   }
 
+  // One card per option, built once so the charts and "More detail" state survive updates.
+  function buildCards() {
+    document.getElementById('cards').innerHTML = M.STRATEGIES.map((s) => `
+      <article class="card" style="--c:${INFO[s].color}" data-strategy="${s}">
+        <header><span class="swatch"></span><h3>${INFO[s].name}</h3></header>
+        <p class="blurb"></p>
+        <div class="kpis"></div>
+        <div class="chart-box"><canvas id="chart-${s}"></canvas></div>
+        <details class="more"><summary>More detail</summary><dl></dl></details>
+      </article>`).join('');
+  }
+
   function renderCards(p, results, baseResults) {
-    const box = document.getElementById('cards');
-    box.innerHTML = results.map((r, i) => {
-      const info = INFO[r.strategy];
+    results.forEach((r, i) => {
+      const card = document.querySelector(`.card[data-strategy="${r.strategy}"]`);
       const base = baseResults ? baseResults[i] : null;
       const val = (row, res) => res[row.key][viewYear];
-      const rows = ROWS.filter((row) => (!row.only || row.only === r.strategy) && row.except !== r.strategy && (!row.show || row.show(p))).map((row) => `
+      const applies = (row) => (!row.only || row.only === r.strategy) && row.except !== r.strategy && (!row.show || row.show(p));
+      card.querySelector('.blurb').innerHTML = INFO[r.strategy].blurb(p);
+      card.querySelector('.kpis').innerHTML = HEADLINES.filter(applies).map((row) => `
+        <div class="kpi">
+          <span class="kpi-val">${row.fmt(val(row, r))}</span>
+          <span class="kpi-label">${row.label(p)}</span>
+          ${base ? deltaHtml(row, val(row, r), val(row, base)) : ''}
+        </div>`).join('');
+      card.querySelector('.more dl').innerHTML = ROWS.filter(applies).map((row) => `
         <div class="row">
           <dt>${row.label(p)}</dt>
           <dd><span class="val">${row.fmt(val(row, r))}</span>${base ? deltaHtml(row, val(row, r), val(row, base)) : ''}</dd>
         </div>`).join('');
-      return `
-        <article class="card" style="--c:${info.color}">
-          <header><span class="swatch"></span><h3>${info.name}</h3></header>
-          <p class="blurb">${info.blurb(p)}</p>
-          <dl>${rows}</dl>
-        </article>`;
-    }).join('');
+    });
   }
 
   function fanDatasets(pc, color, refLines) {
@@ -551,7 +578,7 @@
 
   function renderBasisToggle(p) {
     const box = document.getElementById('basis-toggle');
-    box.hidden = !p.basis2On;
+    document.getElementById('basis-control').hidden = !p.basis2On;
     if (!p.basis2On) return;
     box.innerHTML = [1, 2].map((b) => `
       <button type="button" data-basis="${b}" aria-pressed="${chartBasis === b}">${escapeHtml(basisName(p, b))}</button>`).join('');
@@ -560,9 +587,8 @@
   function renderFanCharts(p, results) {
     const viewing = p.basis2On ? chartBasis : 1;
     const pcOf = (r) => (viewing === 2 ? r.percentiles2 : r.percentiles);
-    document.getElementById('funding-sub').textContent = `On ${theBasis(p, viewing)}, over the first ${viewYear} years. ` +
-      'The line is the median outcome. Shaded bands cover the middle 50% and 90% of scenarios. ' +
-      'Each chart has its own scale.';
+    document.getElementById('funding-sub').textContent = `Charts show funding on ${theBasis(p, viewing)} over the first ` +
+      `${viewYear} years: the line is the median, shaded bands cover the middle 50% and 90% of scenarios. Each chart has its own scale.`;
 
     // Only the years up to the one chosen with the year switch.
     const upTo = (pc) => Object.fromEntries(Object.entries(pc).map(([k, v]) => [k, v.slice(0, viewYear + 1)]));
@@ -580,7 +606,7 @@
       // Fit the scale to this chart's outcomes and reference lines, on a round step.
       const lo = Math.min(...pc.p5, ...refs.map((x) => x.value));
       const hi = Math.max(...pc.p95, ...refs.map((x) => x.value));
-      const step = hi - lo > 80 ? 20 : hi - lo > 30 ? 10 : hi - lo > 12 ? 5 : 2;
+      const step = [1, 2, 5, 10, 20, 25, 50, 100].find((s) => (hi - lo) / s <= 6) || 100;
       const yMin = Math.max(0, Math.floor((lo - step / 2) / step) * step);
       const yMax = Math.ceil((hi + step / 2) / step) * step;
 
@@ -590,7 +616,6 @@
         chart.data.datasets = datasets;
         chart.options.scales.y.min = yMin;
         chart.options.scales.y.max = yMax;
-        chart.options.scales.y.ticks.stepSize = step;
         chart.update();
         return;
       }
@@ -612,8 +637,8 @@
             }
           },
           scales: {
-            y: { min: yMin, max: yMax, ticks: { stepSize: step, callback: (v) => `${v}%` }, grid: { color: '#e9f0ed' } },
-            x: { title: { display: true, text: 'Year' }, ticks: { maxTicksLimit: 6 }, grid: { display: false } }
+            y: { min: yMin, max: yMax, border: { display: false }, ticks: { maxTicksLimit: 5, callback: (v) => `${v}%`, font: { size: 11 } }, grid: { color: '#edf3f0' } },
+            x: { border: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 11 }, callback: (v) => `Yr ${v}` }, grid: { display: false } }
           }
         }
       });
@@ -766,11 +791,16 @@
   });
   document.getElementById('download').addEventListener('click', download);
   document.getElementById('print').addEventListener('click', () => window.print());
+  // Print everything, including the run record and each option's detail.
+  window.addEventListener('beforeprint', () => {
+    document.querySelectorAll('main details').forEach((d) => { d.open = true; });
+  });
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.color = '#55665f';
 
   buildForm();
+  buildCards();
   renderGrowth();
   wireGrowth();
   renderMarketNote();
