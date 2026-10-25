@@ -560,25 +560,29 @@
   function renderFanCharts(p, results) {
     const viewing = p.basis2On ? chartBasis : 1;
     const pcOf = (r) => (viewing === 2 ? r.percentiles2 : r.percentiles);
-    document.getElementById('funding-sub').textContent = `On ${theBasis(p, viewing)}. ` +
-      'The line is the median outcome. Shaded bands cover the middle 50% and 90% of scenarios.';
+    document.getElementById('funding-sub').textContent = `On ${theBasis(p, viewing)}, over the first ${viewYear} years. ` +
+      'The line is the median outcome. Shaded bands cover the middle 50% and 90% of scenarios. ' +
+      'Each chart has its own scale.';
 
-    let lo = Infinity, hi = -Infinity;
-    results.forEach((r) => {
-      lo = Math.min(lo, ...pcOf(r).p5);
-      hi = Math.max(hi, ...pcOf(r).p95);
-    });
-    const yMin = Math.max(0, Math.floor(Math.min(lo, 95) / 10) * 10);
-    const yMax = Math.ceil(Math.max(hi, p.releaseThreshold * 100 + 5) / 10) * 10;
-    const labels = results[0].percentiles.p50.map((_, t) => t);
+    // Only the years up to the one chosen with the year switch.
+    const upTo = (pc) => Object.fromEntries(Object.entries(pc).map(([k, v]) => [k, v.slice(0, viewYear + 1)]));
+    const labels = Array.from({ length: viewYear + 1 }, (_, t) => t);
     const releaseBasis = p.basis2On ? p.releaseBasis : 1;
 
     results.forEach((r) => {
       const info = INFO[r.strategy];
+      const pc = upTo(pcOf(r));
       const refs = [{ label: '100% funded', value: 100, color: '#869690' }];
       if (r.strategy === 'buyout' && viewing === 1) refs.push({ label: 'Insurer price', value: (1 + p.buyoutPremium) * 100, color: info.color });
       if (r.strategy === 'release' && viewing === releaseBasis) refs.push({ label: 'Release above', value: p.releaseThreshold * 100, color: info.color });
-      const datasets = fanDatasets(pcOf(r), info.color, refs);
+      const datasets = fanDatasets(pc, info.color, refs);
+
+      // Fit the scale to this chart's outcomes and reference lines, on a round step.
+      const lo = Math.min(...pc.p5, ...refs.map((x) => x.value));
+      const hi = Math.max(...pc.p95, ...refs.map((x) => x.value));
+      const step = hi - lo > 80 ? 20 : hi - lo > 30 ? 10 : hi - lo > 12 ? 5 : 2;
+      const yMin = Math.max(0, Math.floor((lo - step / 2) / step) * step);
+      const yMax = Math.ceil((hi + step / 2) / step) * step;
 
       const chart = charts[r.strategy];
       if (chart) {
@@ -586,6 +590,7 @@
         chart.data.datasets = datasets;
         chart.options.scales.y.min = yMin;
         chart.options.scales.y.max = yMax;
+        chart.options.scales.y.ticks.stepSize = step;
         chart.update();
         return;
       }
@@ -607,7 +612,7 @@
             }
           },
           scales: {
-            y: { min: yMin, max: yMax, ticks: { callback: (v) => `${v}%` }, grid: { color: '#e9f0ed' } },
+            y: { min: yMin, max: yMax, ticks: { stepSize: step, callback: (v) => `${v}%` }, grid: { color: '#e9f0ed' } },
             x: { title: { display: true, text: 'Year' }, ticks: { maxTicksLimit: 6 }, grid: { display: false } }
           }
         }
