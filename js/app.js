@@ -28,7 +28,7 @@
     },
     longevityVol: {
       note: 'market-lvol', button: 'Use historical',
-      missing: 'Enter the liability increase per extra year of life expectancy to use the ONS-based figure.',
+      missing: 'Enter the liability increase per extra year of life expectancy above to use the ONS-based figure.',
       value: (p) => (MARKET && MARKET.longevity && p.longevitySensitivity !== null
         ? +(MARKET.longevity.volYears * p.longevitySensitivity).toFixed(4) : null),
       text: (p, v) => `Historical: ${(v * 100).toFixed(2)}% a year = ONS life expectancy at 65 varying by ` +
@@ -61,9 +61,6 @@
     { key: 'duration', label: 'Liability duration', unit: 'years', step: 1, min: 2, max: 30 },
     { key: 'inflationLinkedPct', label: 'Inflation-linked benefits', unit: '% of liabilities', pct: true, step: 5, min: 0, max: 100,
       help: 'Share of liabilities that rises with inflation (for example RPI or CPI pension increases).' },
-    { key: 'longevitySensitivity', label: 'Liability increase per extra year of life expectancy', unit: '% of liabilities',
-      pct: true, step: 0.5, min: 0, max: 15, optional: true,
-      help: 'Used for longevity uncertainty and the longevity stress. Leave blank to leave longevity out.' },
 
     { group: 'Funding basis' },
     { key: 'basis1Name', label: 'Basis name', auditLabel: 'Main basis name', type: 'text' },
@@ -87,6 +84,9 @@
     { key: 'giltYield', label: 'Gilt yield', unit: '%', pct: true, step: 0.01, min: 0, max: 10, custom: 'market-yield' },
     { key: 'yieldVol', label: 'Gilt yield volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-yvol' },
     { key: 'inflationVol', label: 'Implied inflation volatility', unit: '% a year', pct: true, step: 0.01, min: 0, max: 3, custom: 'market-ivol' },
+    { key: 'longevitySensitivity', label: 'Liability increase per extra year of life expectancy', unit: '% of liabilities',
+      pct: true, step: 0.5, min: 0, max: 15, optional: true,
+      help: 'Used for longevity uncertainty and the longevity stress. Leave blank to leave longevity out.' },
     { key: 'longevityVol', label: 'Longevity uncertainty', unit: '% of liabilities a year', pct: true, step: 0.01, min: 0, max: 3,
       optional: true, custom: 'market-lvol' },
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
