@@ -21,15 +21,57 @@ $inflation = @{ 5 = 'IUDSIZC'; 10 = 'IUDMIZC'; 20 = 'IUDLIZC' }
 $codes = @($terms | ForEach-Object { $nominal[$_] }) + @($terms | ForEach-Object { $inflation[$_] })
 
 # One extra year of history so the first 12-month change in the window has a starting point.
-$from = (Get-Date).AddYears(-$LookbackYears - 1).AddMonths(-1).ToString('dd/MMM/yyyy', $inv)
-$url = 'https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes' +
-  "&Datefrom=$from&Dateto=now&SeriesCodes=$($codes -join ',')&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N"
+$from = (Get-Date).AddYears(-$LookbackYears - 1).AddMonths(-1)
+$to = Get-Date
 
-$response = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 60 -UserAgent 'Mozilla/5.0'
-$rows = [Text.Encoding]::UTF8.GetString($response.Content).Trim() -split "`r?`n" | ConvertFrom-Csv |
-  Where-Object { $row = $_; -not ($codes | Where-Object { [string]::IsNullOrWhiteSpace($row.$_) }) } |
-  ForEach-Object { $_ | Add-Member -NotePropertyName Day -NotePropertyValue ([DateTime]::ParseExact($_.DATE, 'dd MMM yyyy', $inv)) -PassThru }
-if (-not $rows) { throw 'No complete rows of data found in the Bank of England download.' }
+# Daily history is kept in data/boe-history.csv, so each run only downloads the recent weeks.
+# The Bank's server fails intermittently, so downloads go in six-month chunks with retries.
+# (Its shorter Datefrom/Dateto download link started returning errors in October 2026.)
+$historyFile = Join-Path $root 'data\boe-history.csv'
+
+function Get-BoeCsv($start, $end) {
+  $url = 'https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?Travel=NIxAZxSUx&FromSeries=1&ToSeries=50&DAT=RNG' +
+    "&FD=$($start.Day)&FM=$($start.ToString('MMM', $inv))&FY=$($start.Year)" +
+    "&TD=$($end.Day)&TM=$($end.ToString('MMM', $inv))&TY=$($end.Year)" +
+    "&FNY=Y&CSVF=TN&csv.x=yes&SeriesCodes=$($codes -join ',')&UsingCodes=Y&Filter=N&title=Headroom&VPD=Y"
+  for ($attempt = 1; $attempt -le 6; $attempt++) {
+    try {
+      $response = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 90 -UserAgent 'Mozilla/5.0'
+      return [Text.Encoding]::UTF8.GetString($response.Content).Trim() -split "`r?`n" | ConvertFrom-Csv
+    } catch {
+      if ($attempt -eq 6) { throw "Bank of England download failed for $($start.ToString('d MMM yyyy')) to $($end.ToString('d MMM yyyy')): $($_.Exception.Message)" }
+      Start-Sleep -Seconds (5 * $attempt)
+    }
+  }
+}
+
+# Load saved history (keyed by ISO date), then download from a week before its last date.
+$history = @{}
+if (Test-Path $historyFile) { Import-Csv $historyFile | ForEach-Object { $history[$_.DATE] = $_ } }
+$start = $from
+if ($history.Count) {
+  $start = [DateTime]::ParseExact(($history.Keys | Sort-Object | Select-Object -Last 1), 'yyyy-MM-dd', $inv).AddDays(-7)
+}
+for (; $start -le $to; $start = $start.AddMonths(6)) {
+  $end = $start.AddMonths(6).AddDays(-1)
+  if ($end -gt $to) { $end = $to }
+  foreach ($r in Get-BoeCsv $start $end) {
+    $key = [DateTime]::ParseExact($r.DATE, 'dd MMM yyyy', $inv).ToString('yyyy-MM-dd')
+    $record = [ordered]@{ DATE = $key }
+    foreach ($c in $codes) { $record[$c] = $r.$c }
+    $history[$key] = [pscustomobject]$record
+  }
+}
+$history.Values | Sort-Object DATE | Export-Csv $historyFile -NoTypeInformation -Encoding UTF8
+
+$rows = foreach ($h in $history.Values) {
+  if ($codes | Where-Object { [string]::IsNullOrWhiteSpace($h.$_) }) { continue }
+  $o = [ordered]@{ Day = [DateTime]::ParseExact($h.DATE, 'yyyy-MM-dd', $inv) }
+  foreach ($c in $codes) { $o[$c] = $h.$c }
+  [pscustomobject]$o
+}
+$rows = @($rows | Where-Object { $_.Day -ge $from } | Sort-Object Day)
+if (-not $rows) { throw 'No complete rows of Bank of England data found.' }
 
 $latest = $rows | Select-Object -Last 1
 
