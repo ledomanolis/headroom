@@ -91,7 +91,7 @@
       optional: true, custom: 'market-lvol' },
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
 
-    { group: 'The options' },
+    { group: 'Buyout and surplus release' },
     { key: 'buyoutGrowthPct', label: 'Buyout: growth assets while waiting', unit: '% of assets', pct: true, step: 5, min: 0, max: 100 },
     { key: 'buyoutYear', label: 'Buyout: employer pays any shortfall to buy out by year', unit: '', step: 1, min: 1, max: 40,
       int: true, optional: true, help: 'Leave blank to wait until the scheme can afford the insurer\'s price.' },
