@@ -164,11 +164,12 @@
     { key: 'expEmployer', only: 'release', label: () => 'Surplus to employer (after tax)', fmt: fmtMoney, better: 'up' }
   ];
 
+  // Contributions are drawn left of zero (paid in); the rest stack to the right.
   const MONEY_SERIES = [
-    { key: 'expEmployer', label: 'To employer (after tax)', color: '#0b3b2d' },
-    { key: 'expMember', label: 'To members (before tax)', color: '#3cc39a' },
-    { key: 'expRemaining', label: 'Still in scheme', color: '#bccac4' },
-    { key: 'expContrib', label: 'Employer contributions paid in', color: '#c2410c' }
+    { key: 'expContrib', label: 'Paid in by employer', color: '#c2410c', labelColor: '#fff', paidIn: true },
+    { key: 'expEmployer', label: 'To employer (after tax)', color: '#0b3b2d', labelColor: '#fff' },
+    { key: 'expMember', label: 'To members (before tax)', color: '#3cc39a', labelColor: '#0b3b2d' },
+    { key: 'expRemaining', label: 'Still in scheme (not paid out)', color: 'hatch', labelColor: '#3f5a50' }
   ];
 
   const form = document.getElementById('form');
@@ -645,16 +646,67 @@
     });
   }
 
+  // Pale diagonal hatching for surplus that is still in the scheme (not paid to anyone).
+  function hatchPattern() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 8;
+    const x = c.getContext('2d');
+    x.fillStyle = '#e4ede9';
+    x.fillRect(0, 0, 8, 8);
+    x.strokeStyle = '#b9cbc3';
+    x.lineWidth = 1.5;
+    x.beginPath();
+    x.moveTo(-1, 9); x.lineTo(9, -1);
+    x.stroke();
+    return x.createPattern(c, 'repeat');
+  }
+
+  // Writes each segment's value on the bar when there is room for it.
+  const segmentLabels = {
+    id: 'segmentLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = "600 12px 'Inter', system-ui, sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      chart.data.datasets.forEach((ds, i) => {
+        chart.getDatasetMeta(i).data.forEach((bar, j) => {
+          const text = fmtMoney(Math.abs(ds.data[j]));
+          if (Math.abs(ds.data[j]) < 0.05 || Math.abs(bar.x - bar.base) < ctx.measureText(text).width + 12) return;
+          ctx.fillStyle = ds.labelColor;
+          ctx.fillText(text, (bar.x + bar.base) / 2, bar.y);
+        });
+      });
+      ctx.restore();
+    }
+  };
+
+  function signedMoney(v) {
+    return `${v < 0 ? '−' : v > 0 ? '+' : ''}${fmtMoney(Math.abs(v))}`;
+  }
+
   function renderMoneyChart(results) {
     document.getElementById('money-sub').textContent =
-      `Average across all scenarios over the first ${viewYear} years, in £m, not discounted.`;
+      `Average across all scenarios over the first ${viewYear} years, in £m, not discounted. ` +
+      'Left of zero is paid in by the employer; right is paid out, or still held in the scheme.';
+
+    // Net to employer = surplus received after tax less contributions paid in.
+    document.getElementById('money-net').innerHTML = results.map((r) => {
+      const net = r.expEmployer[viewYear] - r.expContrib[viewYear];
+      return `<div class="net"><span class="net-name"><span class="swatch" style="--c:${INFO[r.strategy].color}"></span>${INFO[r.strategy].name}</span>
+        <span class="net-val ${net < 0 ? 'neg' : ''}">${signedMoney(net)}</span><span class="net-label">net to employer</span></div>`;
+    }).join('');
+
     const labels = results.map((r) => INFO[r.strategy].name);
     const datasets = MONEY_SERIES.map((s) => ({
       label: s.label,
-      data: results.map((r) => +r[s.key][viewYear].toFixed(1)),
-      backgroundColor: s.color,
-      borderRadius: 4,
-      maxBarThickness: 36
+      data: results.map((r) => (s.paidIn ? -1 : 1) * +r[s.key][viewYear].toFixed(1)),
+      backgroundColor: s.color === 'hatch' ? hatchPattern() : s.color,
+      labelColor: s.labelColor,
+      borderRadius: 6,
+      borderSkipped: false,
+      barThickness: 34
     }));
     if (charts.money) {
       charts.money.data.labels = labels;
@@ -665,17 +717,34 @@
     charts.money = new Chart(document.getElementById('chart-money'), {
       type: 'bar',
       data: { labels, datasets },
+      plugins: [segmentLabels],
       options: {
+        indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'rectRounded' } },
-          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: £${c.parsed.y.toFixed(1)}m` } }
+          legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'rectRounded', padding: 16 } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmtMoney(Math.abs(c.parsed.x))}` } }
         },
         scales: {
-          y: { ticks: { callback: (v) => `£${v}m` }, grid: { color: '#e9f0ed' }, beginAtZero: true },
-          x: { grid: { display: false } }
+          x: {
+            stacked: true,
+            border: { display: false },
+            ticks: { callback: (v) => `£${Math.abs(v)}m`, font: { size: 11 } },
+            grid: {
+              color: (c) => (c.tick && c.tick.value === 0 ? '#9db2a9' : '#edf3f0'),
+              lineWidth: (c) => (c.tick && c.tick.value === 0 ? 1.5 : 1)
+            }
+          },
+          y: {
+            stacked: true,
+            border: { display: false },
+            grid: { display: false },
+            ticks: { color: '#10221b', font: { size: 13, weight: '600' } },
+            // Reserve room for the longest name (web fonts can load after the first measure).
+            afterFit: (scale) => { scale.width = Math.max(scale.width, 128); }
+          }
         }
       }
     });
