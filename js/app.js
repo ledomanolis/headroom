@@ -146,7 +146,7 @@
     { key: 'probBelow', label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 1), fmt: fmtPct, better: 'down' },
     { key: 'probBelow2', show: (p) => p.basis2On, label: (p) => onBasis(p, `Chance funding is below 100% in year ${viewYear}`, 2), fmt: fmtPct, better: 'down' },
     { key: 'probContrib', label: () => `Chance employer pays in by year ${viewYear}`, fmt: fmtPct, better: 'down' },
-    { key: 'expContrib', except: 'buyout', label: () => `Expected employer contributions by year ${viewYear}`, fmt: fmtMoney, better: 'down' },
+    { key: 'expContrib', label: () => `Expected employer contributions by year ${viewYear}`, fmt: fmtMoney, better: 'down' },
     { key: 'expEmployer', except: 'buyout', label: () => `Expected surplus to employer by year ${viewYear} (after tax)`, fmt: fmtMoney, better: 'up' },
     { key: 'expMember', except: 'buyout', label: () => `Expected surplus to members by year ${viewYear} (before tax)`, fmt: fmtMoney, better: 'up' },
     { key: 'expRemaining', except: 'buyout', label: () => `Surplus still in scheme in year ${viewYear}`, fmt: fmtMoney },
