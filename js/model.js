@@ -47,6 +47,7 @@
     longevityVol: null,         // blank means no longevity uncertainty
     buyoutPremium: 0.08,
     buyoutGrowthPct: 0.10,
+    buyoutYear: null, // employer pays any shortfall to buy out in this year; blank means wait until affordable
     releaseThreshold: 1.10,
     memberShare: 0.30,
     employerTax: 0.25,
@@ -295,8 +296,13 @@
 
 
         const releaseLevel = L * releaseFactor(D) * p.releaseThreshold;
-        if (strategy === 'buyout' && A >= L * buyoutLevel) {
-          buyOut(t);
+        if (strategy === 'buyout') {
+          // By the chosen year, the employer pays whatever is still needed to meet the insurer's price.
+          if (p.buyoutYear !== null && t >= p.buyoutYear && A < L * buyoutLevel) {
+            contrib += L * buyoutLevel - A;
+            A = L * buyoutLevel;
+          }
+          if (A >= L * buyoutLevel) buyOut(t);
         } else if (strategy === 'release' && A > releaseLevel) {
           payOut(A - releaseLevel);
           A = releaseLevel;

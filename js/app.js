@@ -93,6 +93,8 @@
 
     { group: 'The options' },
     { key: 'buyoutGrowthPct', label: 'Buyout: growth assets while waiting', unit: '% of assets', pct: true, step: 5, min: 0, max: 100 },
+    { key: 'buyoutYear', label: 'Buyout: employer pays any shortfall to buy out by year', unit: '', step: 1, min: 1, max: 40,
+      int: true, optional: true, help: 'Leave blank to wait until the scheme can afford the insurer\'s price.' },
     { key: 'releaseThreshold', label: 'Release: anything above', unit: '% funded', pct: true, step: 1, min: 100, max: 200 },
     { key: 'memberShare', label: 'Share of surplus to members', unit: '%', pct: true, step: 5, min: 0, max: 100,
       help: 'Members\' payments are shown before tax.' },
@@ -120,7 +122,8 @@
   const INFO = {
     buyout: {
       name: 'Buyout', color: '#3d5a99',
-      blurb: (p) => `Cut growth assets to ${fmtPct(p.buyoutGrowthPct)} and insure the scheme as soon as the insurer's price is affordable.`
+      blurb: (p) => `Cut growth assets to ${fmtPct(p.buyoutGrowthPct)} and insure the scheme as soon as the insurer's price is affordable` +
+        (p.buyoutYear !== null ? `, with the employer paying any shortfall to buy out by year ${p.buyoutYear}.` : '.')
     },
     runon: {
       name: 'Run-on', color: '#b7791f',
