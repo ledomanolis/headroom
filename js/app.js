@@ -701,7 +701,8 @@
     const labels = results.map((r) => INFO[r.strategy].name);
     const datasets = MONEY_SERIES.map((s) => ({
       label: s.label,
-      data: results.map((r) => (s.paidIn ? -1 : 1) * +r[s.key][viewYear].toFixed(1)),
+      // For buyout, surplus not yet bought out is needed to meet the insurer's price, so it is not shown as kept.
+      data: results.map((r) => (s.key === 'expRemaining' && r.strategy === 'buyout' ? 0 : (s.paidIn ? -1 : 1) * +r[s.key][viewYear].toFixed(1))),
       backgroundColor: s.color === 'hatch' ? hatchPattern() : s.color,
       labelColor: s.labelColor,
       borderRadius: 6,
@@ -960,7 +961,7 @@
       r.medianFunding.forEach((_, t) => byYear.push([
         INFO[r.strategy].name, t, XL.pct(r.medianFunding[t]), XL.pct(r.percentiles.p5[t] / 100), XL.pct(r.percentiles.p95[t] / 100),
         XL.pct(r.probBelow[t]), XL.pct(r.probContrib[t]), XL.money(r.expContrib[t]),
-        XL.money(r.expEmployer[t]), XL.money(r.expMember[t]), XL.money(r.expRemaining[t]), XL.pct(r.probBuyout[t])
+        XL.money(r.expEmployer[t]), XL.money(r.expMember[t]), r.strategy === 'buyout' ? '–' : XL.money(r.expRemaining[t]), XL.pct(r.probBuyout[t])
       ]));
     });
     XLSX.utils.book_append_sheet(wb, toSheet(byYear, [16, 6, 14, 14, 14, 14, 16, 18, 20, 20, 16, 14]), 'Results by year');
