@@ -11,8 +11,8 @@
  *   - the interest rate and inflation hedges offset the chosen share of each liability sensitivity
  *   - at each valuation (today, then every few years), a deficit on the chosen funding basis leads
  *     to a recovery plan: a level annual contribution, fixed until the next valuation, that
- *     clears the deficit over the recovery period at the discount rate, less any investment
- *     outperformance allowed for on the assets. An optional trigger level sets a plan only
+ *     clears the deficit over the recovery period at the discount rate, adjusted for any assumed
+ *     asset return above gilts (relative to the discount rate). An optional trigger level sets a plan only
  *     when funding is below it.
  * An optional second funding basis values the same benefits at a different margin over gilts,
  * using the liability duration: L2 = L * exp(-duration * (margin2 - margin)).
@@ -206,7 +206,9 @@
     const rpFactor = (D) => (rpOnBasis2 ? basis2Factor(D) : 1);
     const rpMargin = rpOnBasis2 ? p.basis2Margin : p.discountMargin;
     const trigger = p.rpTrigger === null ? 1 : Math.min(p.rpTrigger, 1);
-    const outperformance = p.rpOutperformance || 0;
+    // Outperformance is entered above gilts; the plan allows for the part above the discount rate
+    // (negative if below it, which raises contributions). Blank means assets earn the discount rate.
+    const outperformance = p.rpOutperformance === null ? 0 : p.rpOutperformance - rpMargin;
 
     const funding = new Float64Array(n * W);
     const funding2 = basis2 ? new Float64Array(n * W) : null;

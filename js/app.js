@@ -105,8 +105,8 @@
       help: 'A deficit at a valuation leads to a recovery plan, fixed until the next valuation.' },
     { key: 'rpBasis', label: 'Funding basis for the recovery plan', type: 'select', when: ['rpOn', 'basis2On'] },
     { key: 'recoveryYears', label: 'Recovery period', unit: 'years', step: 1, min: 1, max: 20, int: true, when: 'rpOn' },
-    { key: 'rpOutperformance', label: 'Investment outperformance allowed for', unit: '% a year', pct: true, step: 0.1, min: 0, max: 5,
-      optional: true, when: 'rpOn', help: 'Assumed return on the assets above the discount rate. Leave blank for no allowance.' },
+    { key: 'rpOutperformance', label: 'Investment outperformance allowed for', unit: '% a year above gilts', pct: true, step: 0.1, min: 0, max: 10,
+      optional: true, when: 'rpOn', help: 'Assumed return on the assets above gilts. Leave blank to assume the assets earn the discount rate.' },
     { key: 'rpTrigger', label: 'Only set a plan if funding is below', unit: '%', pct: true, step: 1, min: 50, max: 100,
       optional: true, when: 'rpOn', help: 'Leave blank to set a plan for any deficit.' },
 
