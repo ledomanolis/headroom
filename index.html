@@ -69,8 +69,8 @@
           </span>
         </summary>
         <div class="actions">
-          <button type="button" id="download" class="btn">Download run record</button>
-          <button type="button" id="print" class="btn secondary">Print or save as PDF</button>
+          <button type="button" id="print" class="btn">Print or save PDF summary</button>
+          <button type="button" id="download" class="btn secondary">Download full data (JSON)</button>
         </div>
         <div id="audit-body"></div>
         <p class="limits">
@@ -83,6 +83,9 @@
       </details>
     </main>
   </div>
+
+  <!-- Printable summary, filled in just before printing. Only this shows on paper. -->
+  <section class="report" id="report" aria-hidden="true"></section>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="data/market-data.js"></script>

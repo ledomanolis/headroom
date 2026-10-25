@@ -750,6 +750,94 @@
     });
   }
 
+  // ---------- Printable summary report ----------
+  const REPORT_ROWS = [
+    { label: 'Median funding', key: 'medianFunding', fmt: fmtPct },
+    { label: 'Chance funding is below 100%', key: 'probBelow', fmt: fmtPct },
+    { label: 'Chance employer pays in', key: 'probContrib', fmt: fmtPct },
+    { label: 'Employer contributions paid in', key: 'expContrib', fmt: fmtMoney },
+    { label: 'Surplus to employer (after tax)', key: 'expEmployer', fmt: fmtMoney, except: 'buyout' },
+    { label: 'Surplus to members (before tax)', key: 'expMember', fmt: fmtMoney, except: 'buyout' },
+    { label: 'Surplus still in the scheme', key: 'expRemaining', fmt: fmtMoney, except: 'buyout' },
+    { label: 'Chance of buyout', key: 'probBuyout', fmt: fmtPct, only: 'buyout' },
+    { label: 'Net to employer', value: (r) => r.expEmployer[viewYear] - r.expContrib[viewYear], fmt: signedMoney, strong: true }
+  ];
+
+  function reportAssumptions(p, record) {
+    const pct = (v, dp = 1) => `${(v * 100).toFixed(dp)}%`;
+    const set = record.assumptionSet;
+    const market = record.marketData;
+    const items = [
+      ['Funding basis', `${basisName(p, 1)}: gilts + ${pct(p.discountMargin, 2)}` +
+        (p.basis2On ? `; ${basisName(p, 2)}: gilts + ${pct(p.basis2Margin, 2)}` : '')],
+      ['Gilt yield', `${pct(p.giltYield, 2)}${market ? ` (Bank of England, as at ${market.asAt})` : ''}`],
+      ['Growth assets', `${pct(p.growthPct)} of assets, ${pct(p.growthPremium, 2)} a year over gilts, ${pct(p.growthVol)} volatility ` +
+        `(${set.name}${set.asAt ? `, as at ${set.asAt}` : ''})`],
+      ['Hedging', `Interest rates ${pct(p.hedgeRatio, 0)}, inflation ${pct(p.inflationHedgeRatio, 0)} of liabilities`],
+      ['Liabilities', `Duration ${p.duration} years, ${pct(p.inflationLinkedPct, 0)} inflation-linked, benefits paid ${pct(p.outgoPct)} a year`],
+      ['Longevity', p.longevitySensitivity === null ? 'Not included'
+        : `${pct(p.longevitySensitivity)} of liabilities per extra year of life; uncertainty ${pct(p.longevityVol || 0, 2)} a year`],
+      ['Buyout', `Insurer price ${pct(p.buyoutPremium, 0)} above liabilities; ${pct(p.buyoutGrowthPct, 0)} growth assets while waiting` +
+        (p.buyoutYear !== null ? `; employer pays any shortfall to buy out by year ${p.buyoutYear}` : '')],
+      ['Surplus release', `Anything above ${pct(p.releaseThreshold, 0)} funded${p.basis2On ? ` on ${theBasis(p, p.releaseBasis)}` : ''}; ` +
+        `${pct(p.memberShare, 0)} to members; ${pct(p.employerTax, 0)} tax on payments to the employer`],
+      ['Recovery plan', !p.rpOn ? 'No employer deficit contributions'
+        : `Valuations every ${p.valuationYears} years, deficits cleared over ${p.recoveryYears} years` +
+          (p.rpOutperformance !== null ? `, allowing for ${pct(p.rpOutperformance, 2)} a year over gilts` : '') +
+          (p.rpTrigger !== null ? `, only if funding is below ${pct(p.rpTrigger, 0)}` : '')],
+      ['Simulation', `${p.numSims.toLocaleString('en-GB')} scenarios over ${p.horizon} years, seed ${p.seed}`]
+    ];
+    return items.map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>`).join('');
+  }
+
+  function buildReport() {
+    if (!lastRun) return;
+    const p = lastRun.inputs;
+    const results = lastRun.results;
+    const start = lastRun.startingPosition;
+    const image = (key) => (charts[key] ? `<img src="${charts[key].toBase64Image('image/png', 1)}" alt="">` : '');
+    const stressText = lastRun.stresses.length
+      ? lastRun.stresses.map((k) => M.STRESSES.find((s) => s.key === k).label).join(', ') : 'None';
+
+    const head = results.map((r) => `<th><span class="swatch" style="--c:${INFO[r.strategy].color}"></span>${INFO[r.strategy].name}</th>`).join('');
+    const body = REPORT_ROWS.map((row) => `
+      <tr class="${row.strong ? 'strong' : ''}"><td>${row.label}</td>${results.map((r) => {
+        const applies = (!row.only || row.only === r.strategy) && row.except !== r.strategy;
+        return `<td>${applies ? row.fmt(row.value ? row.value(r) : r[row.key][viewYear]) : '–'}</td>`;
+      }).join('')}</tr>`).join('');
+
+    document.getElementById('report').innerHTML = `
+      <header class="r-head">
+        <div class="r-brand"><span class="logo">H</span><div><div class="r-title">Surplus options summary</div>
+          <div class="r-meta">Headroom · ${new Date(lastRun.runAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          · Results for year ${viewYear} · Stresses: ${escapeHtml(stressText)}</div></div></div>
+      </header>
+
+      <section class="r-scheme">
+        <div><span>Assets</span><strong>${fmtMoney(start.A)}</strong></div>
+        <div><span>Liabilities (${escapeHtml(basisName(p, 1))})</span><strong>${fmtMoney(start.L)}</strong></div>
+        <div><span>Funding level</span><strong>${Math.round(start.A / start.L * 100)}%</strong></div>
+        <div><span>Insurer price</span><strong>${fmtMoney(start.L * (1 + p.buyoutPremium))}</strong></div>
+      </section>
+
+      <h2>Results by year ${viewYear}</h2>
+      <table class="r-table"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table>
+      <p class="r-note">Averages across ${p.numSims.toLocaleString('en-GB')} scenarios, in £m, not discounted. Net to employer is surplus received after tax less contributions paid in.</p>
+
+      <h2>Funding level over time</h2>
+      <div class="r-charts">${results.map((r) => `<figure><figcaption>${INFO[r.strategy].name}</figcaption>${image(r.strategy)}</figure>`).join('')}</div>
+      <p class="r-note">On ${escapeHtml(theBasis(p, p.basis2On ? chartBasis : 1))}. The line is the median; shaded bands cover the middle 50% and 90% of scenarios. Each chart has its own scale.</p>
+
+      <h2>Where the money goes</h2>
+      <div class="r-money">${image('money')}</div>
+
+      <h2 class="r-break">Key assumptions</h2>
+      <dl class="r-assumptions">${reportAssumptions(p, lastRun)}</dl>
+      <p class="r-note">Model version ${lastRun.modelVersion}. Market data: ${lastRun.marketData ? `${escapeHtml(lastRun.marketData.source)}, as at ${lastRun.marketData.asAt}` : 'none loaded'}.
+        The full inputs and results are in the downloadable data file.</p>
+      <p class="r-disclaimer">${document.querySelector('.limits').textContent.trim()}</p>`;
+  }
+
   function renderAudit(record) {
     const stressText = record.stresses.length
       ? record.stresses.map((k) => M.STRESSES.find((s) => s.key === k).label).join(', ')
@@ -860,10 +948,8 @@
   });
   document.getElementById('download').addEventListener('click', download);
   document.getElementById('print').addEventListener('click', () => window.print());
-  // Print everything, including the run record and each option's detail.
-  window.addEventListener('beforeprint', () => {
-    document.querySelectorAll('main details').forEach((d) => { d.open = true; });
-  });
+  // Paper gets a short summary report rather than the whole page.
+  window.addEventListener('beforeprint', buildReport);
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.color = '#55665f';

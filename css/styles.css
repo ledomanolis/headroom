@@ -366,15 +366,48 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   .snapshot .v { font-size: 22px; }
 }
 
-/* ---------- Print: trustee-ready output ---------- */
+/* ---------- Printable summary report ---------- */
+.report { display: none; }
+
+@page { size: A4; margin: 14mm 14mm 16mm; }
+
 @media print {
-  body { background: #fff; font-size: 12px; }
-  .panel, .actions, .controls, .chips button:not([aria-pressed="true"]), #reset { display: none !important; }
-  .topbar { position: static; background: #fff; border-bottom: 3px solid var(--mint); }
-  .layout { display: block; padding: 0; }
-  .overview { background: #fff; }
-  .block, .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
-  main { gap: 12px; }
-  .options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .more > summary, .audit > summary::after { display: none; }
+  body { background: #fff; font-size: 11px; }
+  body > *:not(.report) { display: none !important; }
+  .report { display: block; color: var(--ink); }
+  .report h2 { font-size: 14px; margin: 18px 0 8px; break-after: avoid; }
+  .r-break { break-before: page; margin-top: 0; }
+
+  .r-head { padding-bottom: 12px; border-bottom: 3px solid var(--mint); }
+  .r-brand { display: flex; align-items: center; gap: 12px; }
+  .r-brand .logo { width: 34px; height: 34px; font-size: 18px; }
+  .r-title { font-family: var(--display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .r-meta { color: var(--muted); font-size: 11px; }
+
+  .r-scheme { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .r-scheme div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: var(--mint-wash); }
+  .r-scheme span { font-size: 10px; color: var(--muted); }
+  .r-scheme strong { font-family: var(--display); font-size: 17px; font-weight: 600; }
+
+  .r-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .r-table th, .r-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  .r-table th:first-child, .r-table td:first-child { text-align: left; color: var(--muted); }
+  .r-table thead th { font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--ink); border-bottom: 2px solid var(--line); }
+  .r-table th .swatch { display: inline-block; margin-right: 6px; vertical-align: middle; }
+  .r-table tr.strong td { font-weight: 700; color: var(--ink); border-top: 2px solid var(--line); border-bottom: 0; }
+
+  .r-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .r-charts figure { margin: 0; }
+  .r-charts figcaption { font-weight: 600; font-size: 11px; margin-bottom: 2px; }
+  .r-charts img, .r-money img { width: 100%; height: auto; display: block; }
+  .r-money { break-inside: avoid; }
+  .r-money img { max-width: 520px; margin: 0 auto; }
+
+  .r-assumptions { margin: 0; }
+  .r-assumptions div { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  .r-assumptions dt { color: var(--muted); }
+  .r-assumptions dd { margin: 0; }
+
+  .r-note { color: var(--muted); font-size: 10px; margin: 6px 0 0; }
+  .r-disclaimer { color: var(--faint); font-size: 9.5px; margin-top: 14px; }
 }
