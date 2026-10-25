@@ -1098,7 +1098,8 @@
         margin: [12, 12, 14, 12],
         filename: `headroom-summary-${date}.pdf`,
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        // scrollX/scrollY 0: otherwise the capture is offset by how far the page is scrolled and comes out blank.
+        html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css'], before: '.r-break', avoid: ['tr', '.r-charts', '.r-money', '.r-scheme', '.r-assumptions div'] }
       }).from(report).save();
