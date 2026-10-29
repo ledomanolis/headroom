@@ -27,6 +27,15 @@ Illustrative only. The model is deliberately simple and needs review by a qualif
 - **Recovery plans**: at each valuation (today, then every few years), a deficit on the main funding basis sets a level annual contribution, fixed until the next valuation, that clears the deficit over the recovery period at the discount rate. Optional: an investment outperformance allowance on the assets (reduces the contribution) and a trigger level (only set a plan if funding is below it). Both are blank by default.
 - **Inflation**: part of the liabilities is inflation-linked and moves with market implied inflation, offset by the inflation hedge ratio.
 
+## Hosting
+
+The site is published with GitHub Pages by `.github/workflows/deploy.yml`:
+
+- every push to `main` deploys the site;
+- every weekday at 07:30 UTC (or on a manual run from the Actions tab) it refreshes the Bank of England and ONS data, commits it, and deploys.
+
+On the hosted site the page reads `data/market-data.json`; locally, `serve.ps1` refreshes it on demand instead.
+
 ## Files
 
 - `index.html`: page layout

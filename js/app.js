@@ -1141,7 +1141,10 @@
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 120000);
-      const res = await fetch('api/market', { cache: 'no-store', signal: ctrl.signal });
+      // Local server: api/market refreshes on demand. Hosted (static) site: the data file is
+      // refreshed by a scheduled job, so read the latest copy of it instead.
+      let res = await fetch('api/market', { cache: 'no-store', signal: ctrl.signal });
+      if (res.status === 404) res = await fetch('data/market-data.json', { cache: 'no-store', signal: ctrl.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const fresh = await res.json();
