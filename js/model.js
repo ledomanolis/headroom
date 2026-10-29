@@ -46,7 +46,6 @@
     longevitySensitivity: null, // liability increase per extra year of life expectancy; entered by the user
     longevityVol: null,         // blank means no longevity uncertainty
     buyoutPremium: 0.08,
-    buyoutGrowthPct: 0.10,
     buyoutYear: null, // employer pays any shortfall to buy out in this year; blank means wait until affordable
     releaseThreshold: 1.10,
     memberShare: 0.30,
@@ -195,7 +194,7 @@
     const n = p.numSims;
     const H = p.horizon;
     const W = H + 1;
-    const growthPct = strategy === 'buyout' ? p.buyoutGrowthPct : p.growthPct;
+    const growthPct = p.growthPct;
     const buyoutLevel = 1 + p.buyoutPremium;
 
     // Second basis liabilities as a multiple of main basis liabilities, at duration D.
