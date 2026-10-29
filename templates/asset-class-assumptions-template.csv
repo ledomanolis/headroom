@@ -2,14 +2,14 @@ Assumption set,Placeholder assumptions
 As at,2026-09-28
 Source,Illustrative round numbers chosen for the prototype. Not calibrated to any published assumptions.
 
-Asset class,Return over gilts %,Volatility %,Global equity,Emerging market equity,Private equity,Multi-asset credit,Private credit,Diversified growth fund,Asset-backed securities (ABS),Capital call finance,Asset-backed finance,Infrastructure debt,Absolute return bonds,Private property,Distressed debt,Corporate bonds
+Asset class,Return over gilts %,Volatility %,Global equity,Emerging market equity,Private equity,Multi-asset credit,Private credit,Diversified growth fund,Asset-backed securities,Capital call finance,Asset-backed finance,Infrastructure debt,Absolute return bonds,Private property,Distressed debt,Corporate bonds
 Global equity,4.5,17,1,0.8,0.7,0.6,0.5,0.8,0.3,0.2,0.3,0.3,0.3,0.5,0.6,0.4
 Emerging market equity,5.5,22,0.8,1,0.6,0.5,0.4,0.7,0.3,0.2,0.3,0.3,0.3,0.4,0.6,0.4
 Private equity,6.5,25,0.7,0.6,1,0.5,0.5,0.6,0.3,0.3,0.4,0.3,0.2,0.5,0.6,0.3
 Multi-asset credit,2.5,8,0.6,0.5,0.5,1,0.7,0.6,0.6,0.4,0.6,0.5,0.6,0.4,0.7,0.7
 Private credit,3.5,10,0.5,0.4,0.5,0.7,1,0.5,0.5,0.5,0.7,0.5,0.4,0.4,0.6,0.5
 Diversified growth fund,3,10,0.8,0.7,0.6,0.6,0.5,1,0.3,0.2,0.3,0.3,0.4,0.5,0.5,0.5
-Asset-backed securities (ABS),1.5,4,0.3,0.3,0.3,0.6,0.5,0.3,1,0.4,0.6,0.5,0.6,0.3,0.4,0.6
+Asset-backed securities,1.5,4,0.3,0.3,0.3,0.6,0.5,0.3,1,0.4,0.6,0.5,0.6,0.3,0.4,0.6
 Capital call finance,2,3,0.2,0.2,0.3,0.4,0.5,0.2,0.4,1,0.5,0.4,0.3,0.2,0.3,0.4
 Asset-backed finance,3,7,0.3,0.3,0.4,0.6,0.7,0.3,0.6,0.5,1,0.5,0.5,0.3,0.5,0.5
 Infrastructure debt,2,6,0.3,0.3,0.3,0.5,0.5,0.3,0.5,0.4,0.5,1,0.4,0.4,0.4,0.6
