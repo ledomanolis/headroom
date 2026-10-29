@@ -93,6 +93,8 @@
     { key: 'buyoutPremium', label: 'Insurer price above liabilities', unit: '%', pct: true, step: 1, min: 0, max: 30 },
 
     { group: 'Buyout and surplus release' },
+    { key: 'buyoutGrowthPct', label: 'Buyout: growth assets while waiting', unit: '% of assets', pct: true, step: 5, min: 0, max: 100,
+      optional: true, help: 'Leave blank to keep today\'s growth allocation. Enter a lower figure to model de-risking before buyout (same mix, scaled down).' },
     { key: 'buyoutYear', label: 'Buyout: employer pays any shortfall to buy out by year', unit: '', step: 1, min: 1, max: 40,
       int: true, optional: true, help: 'Leave blank to wait until the scheme can afford the insurer\'s price.' },
     { key: 'releaseThreshold', label: 'Release: anything above', unit: '% funded', pct: true, step: 1, min: 100, max: 200 },
@@ -122,7 +124,8 @@
   const INFO = {
     buyout: {
       name: 'Buyout', color: '#3d5a99',
-      blurb: (p) => `Keep today's investment strategy and insure the scheme as soon as the insurer's price is affordable` +
+      blurb: (p) => (p.buyoutGrowthPct === null ? 'Keep today\'s investment strategy' : `Cut growth assets to ${fmtPct(p.buyoutGrowthPct)}`) +
+        ' and insure the scheme as soon as the insurer\'s price is affordable' +
         (p.buyoutYear !== null ? `, with the employer paying any shortfall to buy out by year ${p.buyoutYear}.` : '.')
     },
     runon: {
@@ -779,6 +782,7 @@
       ['Longevity', p.longevitySensitivity === null ? 'Not included'
         : `${pct(p.longevitySensitivity)} of liabilities per extra year of life; uncertainty ${pct(p.longevityVol || 0, 2)} a year`],
       ['Buyout', `Insurer price ${pct(p.buyoutPremium, 0)} above liabilities` +
+        (p.buyoutGrowthPct !== null ? `; ${pct(p.buyoutGrowthPct, 0)} growth assets while waiting` : '; today\'s growth allocation while waiting') +
         (p.buyoutYear !== null ? `; employer pays any shortfall to buy out by year ${p.buyoutYear}` : '')],
       ['Surplus release', `Anything above ${pct(p.releaseThreshold, 0)} funded${p.basis2On ? ` on ${theBasis(p, p.releaseBasis)}` : ''}; ` +
         `${pct(p.memberShare, 0)} to members; ${pct(p.employerTax, 0)} tax on payments to the employer`],
