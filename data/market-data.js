@@ -2,7 +2,7 @@
 window.HEADROOM_MARKET = {
     "source":  "Bank of England, UK gilt zero coupon yield curves",
     "asAt":  "2026-10-27",
-    "generatedAt":  "2026-10-29T20:49:09",
+    "generatedAt":  "2026-10-29T22:13:40",
     "giltCurve":  [
                       {
                           "term":  5,

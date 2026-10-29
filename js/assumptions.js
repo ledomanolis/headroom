@@ -27,21 +27,32 @@
       { name: 'Global equity', premium: 0.045, vol: 0.17 },
       { name: 'Emerging market equity', premium: 0.055, vol: 0.22 },
       { name: 'Private equity', premium: 0.065, vol: 0.25 },
-      { name: 'Property', premium: 0.030, vol: 0.14 },
-      { name: 'Infrastructure', premium: 0.035, vol: 0.12 },
       { name: 'Multi-asset credit', premium: 0.025, vol: 0.08 },
       { name: 'Private credit', premium: 0.035, vol: 0.10 },
-      { name: 'Diversified growth fund', premium: 0.030, vol: 0.10 }
+      { name: 'Diversified growth fund', premium: 0.030, vol: 0.10 },
+      { name: 'Asset-backed securities (ABS)', premium: 0.015, vol: 0.04 },
+      { name: 'Capital call finance', premium: 0.020, vol: 0.03 },
+      { name: 'Asset-backed finance', premium: 0.030, vol: 0.07 },
+      { name: 'Infrastructure debt', premium: 0.020, vol: 0.06 },
+      { name: 'Absolute return bonds', premium: 0.015, vol: 0.04 },
+      { name: 'Private property', premium: 0.035, vol: 0.13 },
+      { name: 'Distressed debt', premium: 0.050, vol: 0.16 }
     ],
+    // Columns follow the same order as the classes above.
     corr: [
-      [1.0, 0.8, 0.7, 0.5, 0.5, 0.6, 0.5, 0.8],
-      [0.8, 1.0, 0.6, 0.4, 0.4, 0.5, 0.4, 0.7],
-      [0.7, 0.6, 1.0, 0.5, 0.5, 0.5, 0.5, 0.6],
-      [0.5, 0.4, 0.5, 1.0, 0.6, 0.4, 0.4, 0.5],
-      [0.5, 0.4, 0.5, 0.6, 1.0, 0.4, 0.4, 0.5],
-      [0.6, 0.5, 0.5, 0.4, 0.4, 1.0, 0.7, 0.6],
-      [0.5, 0.4, 0.5, 0.4, 0.4, 0.7, 1.0, 0.5],
-      [0.8, 0.7, 0.6, 0.5, 0.5, 0.6, 0.5, 1.0]
+      [1.0, 0.8, 0.7, 0.6, 0.5, 0.8, 0.3, 0.2, 0.3, 0.3, 0.3, 0.5, 0.6],
+      [0.8, 1.0, 0.6, 0.5, 0.4, 0.7, 0.3, 0.2, 0.3, 0.3, 0.3, 0.4, 0.6],
+      [0.7, 0.6, 1.0, 0.5, 0.5, 0.6, 0.3, 0.3, 0.4, 0.3, 0.2, 0.5, 0.6],
+      [0.6, 0.5, 0.5, 1.0, 0.7, 0.6, 0.6, 0.4, 0.6, 0.5, 0.6, 0.4, 0.7],
+      [0.5, 0.4, 0.5, 0.7, 1.0, 0.5, 0.5, 0.5, 0.7, 0.5, 0.4, 0.4, 0.6],
+      [0.8, 0.7, 0.6, 0.6, 0.5, 1.0, 0.3, 0.2, 0.3, 0.3, 0.4, 0.5, 0.5],
+      [0.3, 0.3, 0.3, 0.6, 0.5, 0.3, 1.0, 0.4, 0.6, 0.5, 0.6, 0.3, 0.4],
+      [0.2, 0.2, 0.3, 0.4, 0.5, 0.2, 0.4, 1.0, 0.5, 0.4, 0.3, 0.2, 0.3],
+      [0.3, 0.3, 0.4, 0.6, 0.7, 0.3, 0.6, 0.5, 1.0, 0.5, 0.5, 0.3, 0.5],
+      [0.3, 0.3, 0.3, 0.5, 0.5, 0.3, 0.5, 0.4, 0.5, 1.0, 0.4, 0.4, 0.4],
+      [0.3, 0.3, 0.2, 0.6, 0.4, 0.4, 0.6, 0.3, 0.5, 0.4, 1.0, 0.2, 0.4],
+      [0.5, 0.4, 0.5, 0.4, 0.4, 0.5, 0.3, 0.2, 0.3, 0.4, 0.2, 1.0, 0.4],
+      [0.6, 0.6, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.5, 0.4, 0.4, 0.4, 1.0]
     ]
   };
 
@@ -50,11 +61,16 @@
     'Global equity': 0.12,
     'Emerging market equity': 0.03,
     'Private equity': 0.03,
-    'Property': 0.03,
-    'Infrastructure': 0.03,
     'Multi-asset credit': 0.03,
     'Private credit': 0.03,
-    'Diversified growth fund': 0
+    'Diversified growth fund': 0,
+    'Asset-backed securities (ABS)': 0,
+    'Capital call finance': 0,
+    'Asset-backed finance': 0,
+    'Infrastructure debt': 0.03,
+    'Absolute return bonds': 0,
+    'Private property': 0.03,
+    'Distressed debt': 0
   };
 
   // True if the matrix is positive semi-definite (a valid correlation matrix).
