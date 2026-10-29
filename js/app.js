@@ -318,7 +318,7 @@
       <span>Growth assets total <strong>${(gp.growthPct * 100).toFixed(1)}%</strong></span>
       <span>Portfolio return over gilts <strong>${(gp.premium * 100).toFixed(2)}%</strong></span>
       <span>Portfolio volatility <strong>${(gp.vol * 100).toFixed(1)}%</strong></span>
-      <span class="help">The rest (${Math.max(0, 100 - gp.growthPct * 100).toFixed(1)}%) is held in matching assets (gilts and LDI), assumed to earn the gilt yield.</span>
+      <span class="help">The rest (${Math.max(0, 100 - gp.growthPct * 100).toFixed(1)}%) is held in matching assets, assumed to earn the gilt yield.</span>
       ${gp.growthPct > 1 ? '<span class="warn">Growth allocations add up to more than 100% of assets.</span>' : ''}
       ${dropped.length ? `<span class="warn">Not in this set, so ignored: ${dropped.map(escapeHtml).join(', ')}.</span>` : ''}`;
   }
