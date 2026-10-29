@@ -1143,8 +1143,9 @@
       const timer = setTimeout(() => ctrl.abort(), 120000);
       // Local server: api/market refreshes on demand. Hosted (static) site: the data file is
       // refreshed by a scheduled job, so read the latest copy of it instead.
-      let res = await fetch('api/market', { cache: 'no-store', signal: ctrl.signal });
-      if (res.status === 404) res = await fetch('data/market-data.json', { cache: 'no-store', signal: ctrl.signal });
+      const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+      let res = await fetch(local ? 'api/market' : 'data/market-data.json', { cache: 'no-store', signal: ctrl.signal });
+      if (local && res.status === 404) res = await fetch('data/market-data.json', { cache: 'no-store', signal: ctrl.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const fresh = await res.json();
