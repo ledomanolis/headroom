@@ -6,7 +6,7 @@
  *   - liabilities (on the main funding basis) accrue at gilts + margin, pay benefits, and are
  *     revalued for the change in gilt yields (duration), the change in market implied
  *     inflation (on the inflation-linked share) and a random longevity shock
- *   - matching assets earn gilts + margin; growth assets earn gilts + premium + noise, where
+ *   - matching assets (gilts / LDI) earn the gilt yield; growth assets earn gilts + premium + noise, where
  *     the premium and volatility come from the asset class mix and correlations
  *   - the interest rate and inflation hedges offset the chosen share of each liability sensitivity
  *   - at each valuation (today, then every few years), a deficit on the chosen funding basis leads
@@ -21,7 +21,7 @@
 (function (global) {
   'use strict';
 
-  const MODEL_VERSION = '0.4.0';
+  const MODEL_VERSION = '0.5.0';
   const MEAN_REVERSION = 0.1;   // pull of gilt yields and implied inflation back to their starting level each year
   const DURATION_RUNOFF = 0.3;  // liability duration shortens as the scheme matures
   const MIN_DURATION = 5;
@@ -282,12 +282,13 @@
         const growth = A * growthPct;
         const outgo = L * p.outgoPct;
         const growthReturn = y + p.growthPremium + p.growthVol * shocks.zG[k];
-        const matchingReturn = y + p.discountMargin;
+        const matchingReturn = y;                  // matching assets (gilts / LDI) earn the gilt yield
+        const discountRate = y + p.discountMargin; // liabilities unwind at the discount rate
 
         A = growth * (1 + growthReturn) + (A - growth) * (1 + matchingReturn)
           + p.hedgeRatio * L * (rateFactor - 1)
           + p.inflationHedgeRatio * L * (inflationFactor - 1) - outgo;
-        L = (L * (1 + matchingReturn) - outgo) * rateFactor * inflationFactor
+        L = (L * (1 + discountRate) - outgo) * rateFactor * inflationFactor
           * (1 + (p.longevityVol || 0) * shocks.zL[k]);
         A = Math.max(A, 0);
         y += dY;
