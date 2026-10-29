@@ -168,9 +168,9 @@
   // Contributions are drawn left of zero (paid in); the rest stack to the right.
   const MONEY_SERIES = [
     { key: 'expContrib', label: 'Paid in by employer', color: '#c2410c', labelColor: '#fff', paidIn: true },
-    { key: 'expEmployer', label: 'To employer (after tax)', color: '#0b3b2d', labelColor: '#fff' },
-    { key: 'expMember', label: 'To members (before tax)', color: '#3cc39a', labelColor: '#0b3b2d' },
-    { key: 'expRemaining', label: 'Still in scheme (not paid out)', color: 'hatch', labelColor: '#3f5a50' }
+    { key: 'expEmployer', label: 'To employer (after tax)', color: '#1b2f5e', labelColor: '#fff' },
+    { key: 'expMember', label: 'To members (before tax)', color: '#86a6e3', labelColor: '#0f1f3d' },
+    { key: 'expRemaining', label: 'Still in scheme (not paid out)', color: 'hatch', labelColor: '#3f4d66' }
   ];
 
   const form = document.getElementById('form');
@@ -600,7 +600,7 @@
     results.forEach((r) => {
       const info = INFO[r.strategy];
       const pc = upTo(pcOf(r));
-      const refs = [{ label: '100% funded', value: 100, color: '#869690' }];
+      const refs = [{ label: '100% funded', value: 100, color: '#8b94a6' }];
       if (r.strategy === 'buyout' && viewing === 1) refs.push({ label: 'Insurer price', value: (1 + p.buyoutPremium) * 100, color: info.color });
       if (r.strategy === 'release' && viewing === releaseBasis) refs.push({ label: 'Release above', value: p.releaseThreshold * 100, color: info.color });
       const datasets = fanDatasets(pc, info.color, refs);
@@ -639,7 +639,7 @@
             }
           },
           scales: {
-            y: { min: yMin, max: yMax, border: { display: false }, ticks: { maxTicksLimit: 5, callback: (v) => `${v}%`, font: { size: 11 } }, grid: { color: '#edf3f0' } },
+            y: { min: yMin, max: yMax, border: { display: false }, ticks: { maxTicksLimit: 5, callback: (v) => `${v}%`, font: { size: 11 } }, grid: { color: '#edf1f7' } },
             x: { border: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 11 }, callback: (v) => `Yr ${v}` }, grid: { display: false } }
           }
         }
@@ -652,9 +652,9 @@
     const c = document.createElement('canvas');
     c.width = c.height = 8;
     const x = c.getContext('2d');
-    x.fillStyle = '#e4ede9';
+    x.fillStyle = '#e6ebf3';
     x.fillRect(0, 0, 8, 8);
-    x.strokeStyle = '#b9cbc3';
+    x.strokeStyle = '#bcc7d8';
     x.lineWidth = 1.5;
     x.beginPath();
     x.moveTo(-1, 9); x.lineTo(9, -1);
@@ -735,7 +735,7 @@
             border: { display: false },
             ticks: { callback: (v) => `£${Math.abs(v)}m`, font: { size: 11 } },
             grid: {
-              color: (c) => (c.tick && c.tick.value === 0 ? '#9db2a9' : '#edf3f0'),
+              color: (c) => (c.tick && c.tick.value === 0 ? '#9aa6bb' : '#edf1f7'),
               lineWidth: (c) => (c.tick && c.tick.value === 0 ? 1.5 : 1)
             }
           },
@@ -743,7 +743,7 @@
             stacked: true,
             border: { display: false },
             grid: { display: false },
-            ticks: { color: '#10221b', font: { size: 13, weight: '600' } },
+            ticks: { color: '#121a2b', font: { size: 13, weight: '600' } },
             // Reserve room for the longest name (web fonts can load after the first measure).
             afterFit: (scale) => { scale.width = Math.max(scale.width, 128); }
           }
@@ -1112,7 +1112,7 @@
   }
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-  Chart.defaults.color = '#55665f';
+  Chart.defaults.color = '#5b6578';
 
   buildForm();
   buildCards();
