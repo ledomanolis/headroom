@@ -3,7 +3,8 @@
 
   const M = window.HeadroomModel;
   const AS = window.HeadroomAssumptions;
-  const MARKET = window.HEADROOM_MARKET || null;
+  // Saved market data bundled with the page; replaced by live data from the server when available.
+  let MARKET = window.HEADROOM_MARKET || null;
 
   // Inputs with a sourced value: Bank of England curves read at the liability duration, and
   // ONS life expectancy volatility scaled by the scheme's sensitivity to an extra year of life.
@@ -1121,4 +1122,50 @@
   refreshBasisUI();
   buildStresses();
   update();
+  refreshMarket();
+
+  // ---------- Live market data ----------
+  function setMarketStatus(text, kind) {
+    const el = document.getElementById('market-status');
+    el.textContent = text;
+    el.className = `market-status ${kind || ''}`;
+  }
+
+  // Asks the local server for the latest market data (it fetches from the Bank of England if its
+  // copy is over an hour old). Inputs still at the old market value move to the new one; inputs
+  // the user has typed over are left alone.
+  async function refreshMarket() {
+    if (!MARKET) { setMarketStatus('No market data', 'warn'); return; }
+    if (location.protocol === 'file:') { setMarketStatus(`Market data as at ${fmtDate(MARKET.asAt)}`); return; }
+    setMarketStatus('Checking for latest market data…', 'busy');
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 120000);
+      const res = await fetch('api/market', { cache: 'no-store', signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const fresh = await res.json();
+      const refreshFailed = res.headers.get('X-Market-Refresh') === 'failed';
+
+      const p = readParams();
+      const before = {};
+      Object.entries(MARKET_FIELDS).forEach(([key, m]) => { before[key] = m.value(p); });
+      MARKET = fresh;
+      Object.entries(MARKET_FIELDS).forEach(([key, m]) => {
+        const el = form.elements[key];
+        const now = m.value(p);
+        const untouched = before[key] !== null && el.value !== '' && Math.abs(parseFloat(el.value) - before[key] * 100) < 0.005;
+        if (now !== null && untouched) el.value = +(now * 100).toFixed(2);
+        const startValue = m.value(M.DEFAULTS);
+        if (startValue !== null) START[key] = startValue;
+      });
+      renderMarketNote();
+      update();
+      setMarketStatus(refreshFailed
+        ? `Couldn't reach the Bank of England; using data as at ${fmtDate(MARKET.asAt)}`
+        : `Market data as at ${fmtDate(MARKET.asAt)}`, refreshFailed ? 'warn' : 'ok');
+    } catch (e) {
+      setMarketStatus(`Using saved market data as at ${fmtDate(MARKET.asAt)}`, 'warn');
+    }
+  }
 })();

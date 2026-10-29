@@ -46,4 +46,4 @@ In PowerShell, from this folder:
 powershell -ExecutionPolicy Bypass -File serve.ps1
 ```
 
-Then open http://localhost:8080. It's a plain static site with no build step. Charts use Chart.js from a CDN.
+Then open http://localhost:8080. Market data is live: each time the page opens it asks the server for the latest, and the server re-runs `tools/update-market-data.ps1` if its copy is over an hour old (`-RefreshMinutes` to change). ONS life tables are re-downloaded only when the cached copy is over 30 days old. Inputs you've typed over are kept; the header shows the "as at" date. It's a plain static site with no build step. Charts use Chart.js from a CDN.
