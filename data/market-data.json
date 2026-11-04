@@ -1,40 +1,40 @@
 {
     "source":  "Bank of England, UK gilt zero coupon yield curves",
-    "asAt":  "2026-10-30",
-    "generatedAt":  "2026-11-03T15:23:50",
+    "asAt":  "2026-11-02",
+    "generatedAt":  "2026-11-04T15:38:55",
     "giltCurve":  [
                       {
                           "term":  5,
-                          "yield":  0.048961
+                          "yield":  0.048059
                       },
                       {
                           "term":  10,
-                          "yield":  0.052767
+                          "yield":  0.051815
                       },
                       {
                           "term":  20,
-                          "yield":  0.057564
+                          "yield":  0.056668
                       }
                   ],
     "volatility":  {
                        "method":  "Standard deviation of 12-month changes in month-end values",
                        "lookbackYears":  10,
-                       "from":  "2016-10-30",
+                       "from":  "2016-11-02",
                        "curve":  [
                                      {
                                          "term":  5,
-                                         "yieldVol":  0.00929,
-                                         "inflationVol":  0.0057
+                                         "yieldVol":  0.00926,
+                                         "inflationVol":  0.00568
                                      },
                                      {
                                          "term":  10,
-                                         "yieldVol":  0.00846,
-                                         "inflationVol":  0.00392
+                                         "yieldVol":  0.00842,
+                                         "inflationVol":  0.00389
                                      },
                                      {
                                          "term":  20,
-                                         "yieldVol":  0.00854,
-                                         "inflationVol":  0.00271
+                                         "yieldVol":  0.00849,
+                                         "inflationVol":  0.0027
                                      }
                                  ]
                    },
