@@ -1,25 +1,25 @@
 {
     "source":  "Bank of England, UK gilt zero coupon yield curves",
-    "asAt":  "2026-11-13",
-    "generatedAt":  "2026-11-17T16:59:30",
+    "asAt":  "2026-11-16",
+    "generatedAt":  "2026-11-18T16:39:24",
     "giltCurve":  [
                       {
                           "term":  5,
-                          "yield":  0.049606
+                          "yield":  0.049814
                       },
                       {
                           "term":  10,
-                          "yield":  0.053224
+                          "yield":  0.053337
                       },
                       {
                           "term":  20,
-                          "yield":  0.058105
+                          "yield":  0.058157
                       }
                   ],
     "volatility":  {
                        "method":  "Standard deviation of 12-month changes in month-end values",
                        "lookbackYears":  10,
-                       "from":  "2016-11-13",
+                       "from":  "2016-11-16",
                        "curve":  [
                                      {
                                          "term":  5,
